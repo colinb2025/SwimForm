@@ -1,0 +1,31 @@
+<View>
+  <Header value="Place a point on each joint you can see. Use the Visibility box per point."/>
+  <KeyPointLabels name="kp" toName="img" strokeWidth="3" opacity="0.9">
+    <Label value="nose" background="#e6194b"/>
+    <Label value="l_eye" background="#3cb44b"/>
+    <Label value="r_eye" background="#ffe119"/>
+    <Label value="l_ear" background="#4363d8"/>
+    <Label value="r_ear" background="#f58231"/>
+    <Label value="l_shoulder" background="#911eb4"/>
+    <Label value="r_shoulder" background="#46f0f0"/>
+    <Label value="l_elbow" background="#f032e6"/>
+    <Label value="r_elbow" background="#bcf60c"/>
+    <Label value="l_wrist" background="#fabebe"/>
+    <Label value="r_wrist" background="#008080"/>
+    <Label value="l_hip" background="#e6beff"/>
+    <Label value="r_hip" background="#9a6324"/>
+    <Label value="l_knee" background="#fffac8"/>
+    <Label value="r_knee" background="#800000"/>
+    <Label value="l_ankle" background="#aaffc3"/>
+    <Label value="r_ankle" background="#808000"/>
+  </KeyPointLabels>
+  <Choices name="vis" toName="img" perRegion="true" required="true">
+    <Choice value="visible"/>
+    <Choice value="occluded"/>
+  </Choices>
+  <Choices name="frame" toName="img" required="true">
+    <Choice value="usable"/>
+    <Choice value="unusable"/>
+  </Choices>
+  <Image name="img" value="$image" zoom="true" zoomControl="true" rotateControl="false"/>
+</View>

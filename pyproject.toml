@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "swimform"
+version = "0.1.0"
+description = "Freestyle swim technique analysis: pose estimation, biomechanical metrics, and a rules engine mapping measurements to drills."
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "opencv-python>=4.8",
+    "openpyxl>=3.1",
+]
+
+[project.optional-dependencies]
+# Pose estimation and fine-tuning. Pinned separately because ultralytics is
+# AGPL-3.0: fine for research, needs a commercial licence or a different
+# backbone (e.g. RTMPose, Apache-2.0) before this ships as a product.
+pose = ["ultralytics>=8.3", "torch>=2.1"]
+label = ["label-studio>=1.11"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

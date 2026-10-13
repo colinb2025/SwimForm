@@ -1,0 +1,48 @@
+# Source clips and extracted frames — keep these out of git.
+# Swim video is large, and labeled frames belong in object storage or git-lfs.
+clips/
+data/
+*.mov
+*.mp4
+*.MOV
+*.MP4
+*.jpg
+*.jpeg
+*.png
+
+# Model weights and training runs
+*.pt
+*.pth
+*.onnx
+runs/
+weights/
+
+# Pipeline output
+out/
+pose_out*/
+dataset*/
+round*/
+*_pose.json
+*_overlay.mp4
+
+# Label Studio
+export*.json
+media/
+label_studio.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+*.egg-info/
+build/
+dist/
+.ipynb_checkpoints/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,176 @@
+[
+  {
+    "video": "3ecd94c6-ScreenRecording_09-21-2026_12-45-35_1.mov",
+    "frames": 183,
+    "fps": 25.4,
+    "size": [
+      1920,
+      886
+    ],
+    "swimmer_detected_rate": 0.716,
+    "joint_rates": {
+      "nose": 0.459,
+      "l_eye": 0.224,
+      "r_eye": 0.426,
+      "l_ear": 0.055,
+      "r_ear": 0.481,
+      "l_shoulder": 0.678,
+      "r_shoulder": 0.672,
+      "l_elbow": 0.47,
+      "r_elbow": 0.661,
+      "l_wrist": 0.432,
+      "r_wrist": 0.557,
+      "l_hip": 0.705,
+      "r_hip": 0.716,
+      "l_knee": 0.639,
+      "r_knee": 0.705,
+      "l_ankle": 0.596,
+      "r_ankle": 0.65
+    }
+  },
+  {
+    "video": "3f95fbb0-ScreenRecording_09-21-2026_12-05-17_1.mov",
+    "frames": 177,
+    "fps": 57.0,
+    "size": [
+      1920,
+      886
+    ],
+    "swimmer_detected_rate": 0.492,
+    "joint_rates": {
+      "nose": 0.073,
+      "l_eye": 0.0,
+      "r_eye": 0.056,
+      "l_ear": 0.0,
+      "r_ear": 0.147,
+      "l_shoulder": 0.345,
+      "r_shoulder": 0.446,
+      "l_elbow": 0.209,
+      "r_elbow": 0.446,
+      "l_wrist": 0.294,
+      "r_wrist": 0.469,
+      "l_hip": 0.446,
+      "r_hip": 0.446,
+      "l_knee": 0.458,
+      "r_knee": 0.458,
+      "l_ankle": 0.458,
+      "r_ankle": 0.458
+    }
+  },
+  {
+    "video": "5ec20645-ScreenRecording_09-21-2026_12-46-24_1.mov",
+    "frames": 216,
+    "fps": 29.8,
+    "size": [
+      1920,
+      886
+    ],
+    "swimmer_detected_rate": 0.389,
+    "joint_rates": {
+      "nose": 0.042,
+      "l_eye": 0.019,
+      "r_eye": 0.032,
+      "l_ear": 0.032,
+      "r_ear": 0.069,
+      "l_shoulder": 0.213,
+      "r_shoulder": 0.213,
+      "l_elbow": 0.176,
+      "r_elbow": 0.185,
+      "l_wrist": 0.134,
+      "r_wrist": 0.167,
+      "l_hip": 0.292,
+      "r_hip": 0.306,
+      "l_knee": 0.213,
+      "r_knee": 0.218,
+      "l_ankle": 0.171,
+      "r_ankle": 0.176
+    }
+  },
+  {
+    "video": "89a9cfd5-ScreenRecording_09-21-2026_12-05-57_1.mov",
+    "frames": 131,
+    "fps": 24.9,
+    "size": [
+      1920,
+      886
+    ],
+    "swimmer_detected_rate": 0.137,
+    "joint_rates": {
+      "nose": 0.023,
+      "l_eye": 0.015,
+      "r_eye": 0.023,
+      "l_ear": 0.023,
+      "r_ear": 0.053,
+      "l_shoulder": 0.107,
+      "r_shoulder": 0.099,
+      "l_elbow": 0.084,
+      "r_elbow": 0.076,
+      "l_wrist": 0.069,
+      "r_wrist": 0.053,
+      "l_hip": 0.115,
+      "r_hip": 0.107,
+      "l_knee": 0.076,
+      "r_knee": 0.084,
+      "l_ankle": 0.046,
+      "r_ankle": 0.046
+    }
+  },
+  {
+    "video": "c2ec76ea-ScreenRecording_09-21-2026_12-45-03_1.mov",
+    "frames": 208,
+    "fps": 29.2,
+    "size": [
+      1920,
+      886
+    ],
+    "swimmer_detected_rate": 0.75,
+    "joint_rates": {
+      "nose": 0.365,
+      "l_eye": 0.226,
+      "r_eye": 0.202,
+      "l_ear": 0.365,
+      "r_ear": 0.207,
+      "l_shoulder": 0.673,
+      "r_shoulder": 0.663,
+      "l_elbow": 0.659,
+      "r_elbow": 0.577,
+      "l_wrist": 0.644,
+      "r_wrist": 0.553,
+      "l_hip": 0.692,
+      "r_hip": 0.688,
+      "l_knee": 0.553,
+      "r_knee": 0.51,
+      "l_ankle": 0.404,
+      "r_ankle": 0.389
+    }
+  },
+  {
+    "video": "ebeafa58-ScreenRecording_09-21-2026_12-46-53_1.mov",
+    "frames": 111,
+    "fps": 33.7,
+    "size": [
+      1920,
+      886
+    ],
+    "swimmer_detected_rate": 0.36,
+    "joint_rates": {
+      "nose": 0.0,
+      "l_eye": 0.0,
+      "r_eye": 0.0,
+      "l_ear": 0.027,
+      "r_ear": 0.0,
+      "l_shoulder": 0.18,
+      "r_shoulder": 0.045,
+      "l_elbow": 0.36,
+      "r_elbow": 0.027,
+      "l_wrist": 0.351,
+      "r_wrist": 0.198,
+      "l_hip": 0.189,
+      "r_hip": 0.072,
+      "l_knee": 0.063,
+      "r_knee": 0.018,
+      "l_ankle": 0.036,
+      "r_ankle": 0.009
+    }
+  }
+]
