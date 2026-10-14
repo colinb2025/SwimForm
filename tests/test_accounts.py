@@ -1,4 +1,5 @@
 """Accounts: sign up, log in, log out, privacy between accounts, request protections."""
+import html
 import io
 
 import pytest
@@ -138,7 +139,7 @@ def test_reports_home_lists_your_analyses(app_):
     signup(c, name="Colin Bitz")
     assert "No reports yet" in c.get("/").text
     aid = analyse(c).headers["location"].split("/")[-1]
-    home = c.get("/").text
+    home = html.unescape(c.get("/").text)
     assert "Colin's reports" in home and f"/analyses/{aid}" in home
     assert home.count('class="seg seg-') == 14
 

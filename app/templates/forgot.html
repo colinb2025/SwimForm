@@ -1,24 +1,25 @@
 {% extends "base.html" %}
 {% block title %}Reset your password · SwimForm{% endblock %}
+{% block page_class %}page-plain{% endblock %}
 {% block content %}
-<div class="entry entry-narrow">
-  <section class="entry-form" aria-labelledby="forgot-h">
+<div class="auth-single">
+  <div class="card">
     {% if sent %}
-    <h2 id="forgot-h">Check your email</h2>
-    <p>If there's a SwimForm account for <b>{{ email }}</b>, we've sent it a link to choose a new password.
+    <h1>Check your email</h1>
+    <p class="lead">If there's a SwimForm account for <b>{{ email }}</b>, we've sent it a link to choose a new password.
       The link works for an hour.</p>
-    <p class="switch">Nothing arrived after a few minutes? Check your spam folder, or <a href="/forgot">send it again</a>.</p>
+    <p class="muted small">Nothing after a few minutes? Check your spam folder, or <a href="/forgot">send it again</a>.</p>
     {% else %}
-    <h2 id="forgot-h">Reset your password</h2>
-    <p>Enter the email you signed up with and we'll send you a link to choose a new password.</p>
+    <h1>Reset your password</h1>
+    <p class="lead">Enter the email you signed up with and we'll send you a link to choose a new password.</p>
     <form action="/forgot" method="post" class="stack">
-      <label>Email
+      <label class="field"><span>Email</span>
         <input type="email" name="email" value="{{ email }}" autocomplete="email" required autofocus>
       </label>
-      <button type="submit" class="go">Send reset link</button>
+      <button type="submit" class="btn btn-primary btn-block">Send reset link</button>
     </form>
-    <p class="switch">Remembered it? <a href="/login">Log in</a></p>
+    <p class="muted small" style="margin-top:20px;text-align:center">Remembered it? <a href="/login">Log in</a></p>
     {% endif %}
-  </section>
+  </div>
 </div>
 {% endblock %}

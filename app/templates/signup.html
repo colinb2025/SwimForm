@@ -1,38 +1,52 @@
 {% extends "base.html" %}
+{% from "_macros.html" import brand %}
 {% block title %}Create an account · SwimForm{% endblock %}
-{% block content %}
-<div class="entry">
-  <section class="entry-pitch">
-    <h1>Create your account</h1>
-    <p class="lede">Your reports are saved to your account and visible only to you, so you can
-      compare your stroke as it changes.</p>
-  </section>
+{% block shell %}
+<div class="auth">
+  <aside class="auth-panel">
+    {{ brand() }}
+    <div class="auth-pitch">
+      <h1>Your stroke, measured</h1>
+      <p>Your reports are saved to your account and visible only to you, so you can see your stroke
+        change over a season.</p>
+      <div class="preview-card" aria-hidden="true">
+        <p class="preview-title">What you'll need</p>
+        <div class="preview-row"><span class="dot dot-clear"></span><span class="name">A side-view clip, 15–30 seconds</span></div>
+        <div class="preview-row"><span class="dot dot-clear"></span><span class="name">A head-on clip, 15–30 seconds</span></div>
+        <div class="preview-row"><span class="dot dot-clear"></span><span class="name">A friend with a phone</span></div>
+      </div>
+    </div>
+    <p class="auth-foot">Built by a former Olympic Trials swimmer, for triathletes.</p>
+  </aside>
 
-  <section class="entry-form" aria-labelledby="signup-h">
-    <h2 id="signup-h">Sign up</h2>
-    {% if google_enabled %}
-    <a class="google-button" href="/auth/google/start">Continue with Google</a>
-    <p class="or"><span>or</span></p>
-    {% endif %}
-    <form action="/signup" method="post" class="stack" novalidate>
-      <label><span>Name <span class="optional">(optional)</span></span>
-        <input type="text" name="name" value="{{ name }}" autocomplete="name" maxlength="120">
-      </label>
-      <label>Email
-        <input type="email" name="email" value="{{ email }}" autocomplete="email" required
-               {% if errors.email %}aria-invalid="true" aria-describedby="email-err"{% endif %}>
-        {% if errors.email %}<span class="field-error" id="email-err">{{ errors.email }}</span>{% endif %}
-      </label>
-      <label>Password
-        <input type="password" name="password" autocomplete="new-password" required minlength="10"
-               aria-describedby="{{ 'pw-err' if errors.password else 'pw-help' }}"
-               {% if errors.password %}aria-invalid="true"{% endif %}>
-        {% if errors.password %}<span class="field-error" id="pw-err">{{ errors.password }}</span>
-        {% else %}<span class="field-help" id="pw-help">At least 10 characters.</span>{% endif %}
-      </label>
-      <button type="submit" class="go">Create account</button>
-    </form>
-    <p class="switch">Already have an account? <a href="/login">Log in</a></p>
-  </section>
+  <main class="auth-main">
+    <div class="auth-form">
+      <h2>Create your account</h2>
+      <p class="lead">Free to start. Takes a minute.</p>
+      {% if google_enabled %}
+      <a class="google-button" href="/auth/google/start">Continue with Google</a>
+      <div class="divider">or</div>
+      {% endif %}
+      <form action="/signup" method="post" class="stack" novalidate>
+        <label class="field"><span>Name <span class="optional">(optional)</span></span>
+          <input type="text" name="name" value="{{ name }}" autocomplete="name" maxlength="120">
+        </label>
+        <label class="field"><span>Email</span>
+          <input type="email" name="email" value="{{ email }}" autocomplete="email" required
+                 {% if errors.email %}aria-invalid="true" aria-describedby="email-err"{% endif %}>
+          {% if errors.email %}<span class="error" id="email-err">{{ errors.email }}</span>{% endif %}
+        </label>
+        <label class="field"><span>Password</span>
+          <input type="password" name="password" autocomplete="new-password" required minlength="10"
+                 aria-describedby="{{ 'pw-err' if errors.password else 'pw-help' }}"
+                 {% if errors.password %}aria-invalid="true"{% endif %}>
+          {% if errors.password %}<span class="error" id="pw-err">{{ errors.password }}</span>
+          {% else %}<span class="help" id="pw-help">At least 10 characters.</span>{% endif %}
+        </label>
+        <button type="submit" class="btn btn-primary btn-block">Create account</button>
+      </form>
+      <p class="switch">Already have an account? <a href="/login">Log in</a></p>
+    </div>
+  </main>
 </div>
 {% endblock %}

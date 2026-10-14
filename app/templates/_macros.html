@@ -1,0 +1,52 @@
+{% macro brand_mark() -%}
+<svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+  <rect class="mark-bg" width="32" height="32" rx="8" fill="#0A3350"/>
+  <path d="M6 13c2.5-2.4 5-2.4 7.5 0s5 2.4 7.5 0 5-2.4 7.5 0" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M6 19.5c2.5-2.4 5-2.4 7.5 0s5 2.4 7.5 0 5-2.4 7.5 0" fill="none" stroke="#7FC3D8" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M6 25.5h4M13 25.5h4M20 25.5h4" stroke="#E05A4F" stroke-width="2" stroke-linecap="round"/>
+</svg>
+{%- endmacro %}
+
+{% macro brand(href="/") -%}
+<a class="brand" href="{{ href }}">{{ brand_mark() }}<span class="brand-name">SwimForm</span></a>
+{%- endmacro %}
+
+{% macro band(title, sub=None) -%}
+<header class="band">
+  <div class="band-inner">
+    <div>
+      <h1>{{ title }}</h1>
+      {% if sub %}<p class="sub">{{ sub }}</p>{% endif %}
+    </div>
+    {% if caller %}<div>{{ caller() }}</div>{% endif %}
+  </div>
+</header>
+{%- endmacro %}
+
+{# Top-down pool with one camera position highlighted. #}
+{% macro mini_diagram(view) -%}
+<svg class="mini" viewBox="0 0 92 56" aria-hidden="true">
+  <rect class="m-deck" width="92" height="56" rx="6"/>
+  <rect class="m-water" x="4" y="6" width="74" height="40" rx="2"/>
+  <line class="m-rope" x1="4" y1="20" x2="78" y2="20"/>
+  <line class="m-rope" x1="4" y1="32" x2="78" y2="32"/>
+  <rect class="m-wall" x="78" y="6" width="3" height="40"/>
+  {% if view == "side" %}
+  <path class="m-cone" d="M41 52 L27 26 L55 26 Z"/>
+  <circle class="m-cam" cx="41" cy="51" r="3.6"/>
+  {% else %}
+  <path class="m-cone" d="M87 26 L56 20 L56 32 Z"/>
+  <circle class="m-cam" cx="86.5" cy="26" r="3.6"/>
+  {% endif %}
+  <ellipse class="m-swimmer" cx="44" cy="26" rx="9" ry="2.6"/>
+  <circle class="m-swimmer" cx="54.5" cy="26" r="2.6"/>
+</svg>
+{%- endmacro %}
+
+{% macro upload_icon() -%}
+<svg class="drop-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <rect x="4" y="9" width="21" height="18" rx="3"/>
+  <path d="M25 15l7-4v14l-7-4"/>
+  <path d="M14.5 22v-8M11 17l3.5-3.5L18 17"/>
+</svg>
+{%- endmacro %}

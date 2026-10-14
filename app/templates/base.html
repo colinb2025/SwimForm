@@ -1,32 +1,60 @@
+{% from "_macros.html" import brand %}
+{% set path = request.url.path %}
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0A3350">
   <title>{% block title %}SwimForm{% endblock %}</title>
-  <link rel="preload" href="/static/fonts/barlow-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="/static/fonts/barlow-condensed-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/static/fonts/archivo-latin-wdth-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/fonts/fonts.css">
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <header class="masthead">
-    <a class="wordmark" href="/">SwimForm</a>
-    <nav class="nav" aria-label="Account">
+{% block shell %}
+  <div class="topbar">
+    <div class="topbar-inner">
+      {{ brand() }}
       {% if user %}
-      <a href="/">Your reports</a>
-      <a href="/analyses/new">New analysis</a>
-      <a href="/guide">Filming guide</a>
-      <form action="/logout" method="post" class="nav-form"><button type="submit" class="link-button">Log out</button></form>
+      <nav class="nav" aria-label="Main">
+        <a href="/" {% if path == "/" or path.startswith("/analyses/") and path != "/analyses/new" %}aria-current="page"{% endif %}>Reports</a>
+        <a href="/analyses/new" {% if path == "/analyses/new" %}aria-current="page"{% endif %}>New analysis</a>
+        <a href="/guide" {% if path == "/guide" %}aria-current="page"{% endif %}>Filming guide</a>
+      </nav>
+      <div class="nav-end">
+        <details class="account">
+          <summary aria-label="Account menu">
+            <span class="avatar" aria-hidden="true">{{ (user.name or user.email)[:1]|upper }}</span>
+            <span class="visually-hidden">Account</span>
+          </summary>
+          <div class="account-menu">
+            <div class="who">{% if user.name %}<b>{{ user.name }}</b>{% endif %}<span>{{ user.email }}</span></div>
+            <a class="menu-item" href="/">Your reports</a>
+            <form action="/logout" method="post"><button type="submit" class="menu-item">Log out</button></form>
+          </div>
+        </details>
+      </div>
       {% else %}
-      <a href="/guide">Filming guide</a>
-      <a href="/login">Log in</a>
+      <nav class="nav" aria-label="Main">
+        <a href="/guide" {% if path == "/guide" %}aria-current="page"{% endif %}>Filming guide</a>
+      </nav>
+      <div class="nav-end"><a class="btn btn-secondary" href="/login">Log in</a></div>
       {% endif %}
-    </nav>
-  </header>
-  <main class="page">
+    </div>
+  </div>
+  {% if user %}
+  <nav class="mobile-nav" aria-label="Main (mobile)">
+    <a href="/" {% if path == "/" %}aria-current="page"{% endif %}>Reports</a>
+    <a href="/analyses/new" {% if path == "/analyses/new" %}aria-current="page"{% endif %}>New analysis</a>
+    <a href="/guide" {% if path == "/guide" %}aria-current="page"{% endif %}>Filming guide</a>
+  </nav>
+  {% endif %}
+  {% block band %}{% endblock %}
+  <main class="page {% block page_class %}{% endblock %}">
     {% block content %}{% endblock %}
   </main>
+{% endblock %}
   <script>
     /* Show stored UTC times in the reader's own time zone. */
     document.querySelectorAll("time[data-local]").forEach(function (t) {
@@ -35,6 +63,10 @@
       var opts = { day: "numeric", month: "short", year: "numeric" };
       if (t.dataset.local === "datetime") { opts.hour = "numeric"; opts.minute = "2-digit"; }
       t.textContent = d.toLocaleString(undefined, opts);
+    });
+    /* Close the account menu when clicking elsewhere. */
+    document.addEventListener("click", function (e) {
+      document.querySelectorAll("details.account[open]").forEach(function (d) { if (!d.contains(e.target)) d.open = false; });
     });
   </script>
   {% block scripts %}{% endblock %}

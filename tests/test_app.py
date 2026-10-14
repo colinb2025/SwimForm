@@ -196,7 +196,7 @@ def test_fonts_are_self_hosted(client):
     page = client.get("/").text
     assert "googleapis" not in page and "/static/fonts/fonts.css" in page
     assert client.get("/static/fonts/fonts.css").status_code == 200
-    assert client.get("/static/fonts/barlow-latin-400-normal.woff2").status_code == 200
+    assert client.get("/static/fonts/archivo-latin-wdth-normal.woff2").status_code == 200
 
 
 def test_pages_load_their_scripts_and_work_without_them(client):

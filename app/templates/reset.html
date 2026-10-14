@@ -1,26 +1,27 @@
 {% extends "base.html" %}
 {% block title %}Choose a new password · SwimForm{% endblock %}
+{% block page_class %}page-plain{% endblock %}
 {% block content %}
-<div class="entry entry-narrow">
-  <section class="entry-form" aria-labelledby="reset-h">
+<div class="auth-single">
+  <div class="card">
     {% if valid %}
-    <h2 id="reset-h">Choose a new password</h2>
-    <p>Setting a new password signs you out on every other device.</p>
+    <h1>Choose a new password</h1>
+    <p class="lead">Saving it signs you out on every other device.</p>
     <form action="/reset" method="post" class="stack" novalidate>
       <input type="hidden" name="token" value="{{ token }}">
-      <label>New password
+      <label class="field"><span>New password</span>
         <input type="password" name="password" autocomplete="new-password" required minlength="10" autofocus
                aria-describedby="{{ 'pw-err' if error else 'pw-help' }}" {% if error %}aria-invalid="true"{% endif %}>
-        {% if error %}<span class="field-error" id="pw-err">{{ error }}</span>
-        {% else %}<span class="field-help" id="pw-help">At least 10 characters.</span>{% endif %}
+        {% if error %}<span class="error" id="pw-err">{{ error }}</span>
+        {% else %}<span class="help" id="pw-help">At least 10 characters.</span>{% endif %}
       </label>
-      <button type="submit" class="go">Save new password</button>
+      <button type="submit" class="btn btn-primary btn-block">Save new password</button>
     </form>
     {% else %}
-    <h2 id="reset-h">This link has expired</h2>
-    <p>Reset links work for an hour and only once.</p>
-    <p><a class="go" href="/forgot">Send a new link</a></p>
+    <h1>This link has expired</h1>
+    <p class="lead">Reset links work for an hour and only once.</p>
+    <a class="btn btn-primary btn-block" href="/forgot">Send a new link</a>
     {% endif %}
-  </section>
+  </div>
 </div>
 {% endblock %}

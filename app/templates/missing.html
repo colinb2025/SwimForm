@@ -1,9 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Report not found · SwimForm{% endblock %}
+{% block page_class %}page-plain{% endblock %}
 {% block content %}
-<section class="intro">
-  <h1>We can't find that report</h1>
-  <p class="lede">The link may be mistyped, or the report may belong to a different account.</p>
-  <p><a class="go" href="/">Go to your reports</a></p>
-</section>
+<div class="auth-single">
+  <div class="card">
+    <h1>We can't find that report</h1>
+    <p class="lead">The link may be mistyped, or the report may belong to a different account.</p>
+    <a class="btn btn-primary btn-block" href="/">Go to your reports</a>
+  </div>
+</div>
 {% endblock %}

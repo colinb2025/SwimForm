@@ -1,126 +1,155 @@
 {% extends "base.html" %}
+{% from "_macros.html" import band %}
 {% block title %}Your stroke report · SwimForm{% endblock %}
+{% block band %}
+<header class="band">
+  <div class="band-inner">
+    <div>
+      <h1>Your stroke report</h1>
+      <p class="sub"><time datetime="{{ r.created_iso }}" data-local="date">{{ r.created }}</time>{% if r.stroke_rate %} · <b>{{ r.stroke_rate }}</b> strokes a minute{% endif %} · We checked {{ r.lanes|length }} parts of your stroke</p>
+    </div>
+    <div><button type="button" class="btn btn-on-band print-report" hidden>Print or save PDF</button></div>
+  </div>
+</header>
+{% endblock %}
 {% block content %}
-{% set summary = (r.counts.flagged ~ " to work on") if r.counts.flagged else ("nothing flagged" if not r.counts.estimated else (r.counts.estimated ~ " estimated")) %}
-<section class="intro report-intro" data-report-id="{{ r.id }}" data-report-date="{{ r.created }}" data-report-summary="{{ summary }}">
-  <h1>Your stroke report</h1>
-  <p class="lede">
-    <time datetime="{{ r.created_iso }}" data-local="date">{{ r.created }}</time>{% if r.stroke_rate %}, swimming at {{ r.stroke_rate }} strokes a minute{% endif %}.
-    We checked {{ r.lanes|length }} parts of your stroke.
-  </p>
-  {% if r.synthetic %}
-  <p class="demo" role="note">Demo data: this report comes from a simulated swimmer, not from your video.
-    Real analysis switches on when the pose model is connected.</p>
-  {% endif %}
-</section>
+{% set n_flag = r.counts.flagged %}
+{% set n_est = r.counts.estimated %}
+{% set n_good = r.counts["clear"] + r.counts["clear_est"] %}
+{% set advice = {} %}
+{% for u in r.unchecked %}{% set _ = advice.update({u.name: u.advice}) %}{% endfor %}
 
-<section class="lanes" aria-labelledby="lanes-h">
-  <h2 id="lanes-h">Every check, at a glance</h2>
-  <ul class="legend">
-    {% for key, label in [("flagged", "Needs work"), ("estimated", "May need work"), ("unchecked", "Couldn't check"), ("clear", "Looks good")] %}
-      {% set n = r.counts[key] + (r.counts["clear_est"] if key == "clear" else 0) %}
-      {% if n %}<li class="lg lg-{{ key }}"><span class="rope-chip" aria-hidden="true"></span>{{ label }} <b>{{ n }}</b></li>{% endif %}
-    {% endfor %}
-  </ul>
-  <ul class="lane-list">
-    {% for l in r.lanes %}
-    <li class="lane lane-{{ l.status }}">
-      <span class="rope" aria-hidden="true"></span>
-      <span class="lane-name">{{ l.name }}</span>
-      <span class="lane-status">{{ l.label }}</span>
-    </li>
-    {% endfor %}
-  </ul>
+<section class="card" data-report-id="{{ r.id }}" aria-label="Summary">
+  {% if r.synthetic %}
+  <div class="notice" role="note" style="margin-bottom:20px"><p>Demo data: this report comes from a simulated swimmer, not from your video. Real analysis switches on when the pose model is connected.</p></div>
+  {% endif %}
+  <div class="summary">
+    <div>
+      {% if n_flag %}
+      <div class="headline-num n-flagged">{{ n_flag }}</div>
+      <div class="headline-text">{{ "thing" if n_flag == 1 else "things" }} to work on</div>
+      {% elif n_est %}
+      <div class="headline-num n-estimated">{{ n_est }}</div>
+      <div class="headline-text">{{ "thing" if n_est == 1 else "things" }} that may need work</div>
+      {% else %}
+      <div class="headline-num n-clear">{{ n_good }}</div>
+      <div class="headline-text">checks look good</div>
+      {% endif %}
+    </div>
+    <div class="summary-side">
+      <ul class="list-plain counts">
+        {% for key, label, n in [("flagged", "Needs work", n_flag), ("estimated", "May need work", n_est), ("unchecked", "Couldn't check", r.counts.unchecked), ("clear", "Looks good", n_good)] if n %}
+        <li><span class="dot dot-{{ key }}" aria-hidden="true"></span>{{ label }} <b>{{ n }}</b></li>
+        {% endfor %}
+      </ul>
+      <div class="strip" aria-hidden="true">{% for l in r.lanes %}<i class="seg seg-{{ l.status }}" title="{{ l.name }}: {{ l.label }}"></i>{% endfor %}</div>
+    </div>
+  </div>
 </section>
 
 {% if r.priorities %}
-<section class="work" aria-labelledby="work-h">
-  <h2 id="work-h">What to work on first</h2>
+<section class="section" aria-labelledby="work-h">
+  <div class="section-head"><h2 id="work-h">What to work on first</h2></div>
   {% for p in r.priorities %}
-  <article class="finding{% if p.estimated %} finding-est{% endif %}">
-    <header>
-      <h3>{{ p.name }}</h3>
-      {% if p.estimated %}<p class="est-tag">Estimated from what the cameras could see</p>{% endif %}
-    </header>
-    <div class="finding-body">
-      <div class="finding-text">
+  <article class="card finding{% if p.estimated %} finding-est{% endif %}">
+    <div class="finding-top">
+      <span class="rank" aria-label="Priority {{ loop.index }}">{{ loop.index }}</span>
+      <div class="finding-title">
+        <h3>{{ p.name }}</h3>
+        {% if p.estimated %}<span class="pill pill-estimated">Estimated from what the cameras could see</span>
+        {% else %}<span class="pill pill-flagged">Needs work</span>{% endif %}
+      </div>
+    </div>
+    <div class="finding-body{% if not p.snapshot %} no-snap{% endif %}">
+      <div>
         <p class="observed">{{ p.observed }}</p>
         <p class="why">{{ p.why }}</p>
+        {% if p.caption %}<p class="measure">{{ p.caption }}</p>{% endif %}
       </div>
       {% if p.snapshot %}
       <figure class="snapshot">
         {{ p.snapshot|safe }}
-        <figcaption>Your average stroke {{ p.snapshot_moment }}, {{ "side view" if p.snapshot_view == "side" else "head-on" }}.
-          {% if p.caption %}<span class="snap-number">{{ p.caption }}</span>{% endif %}</figcaption>
+        <figcaption>Your average stroke {{ p.snapshot_moment }}, {{ "side view" if p.snapshot_view == "side" else "head-on" }}</figcaption>
       </figure>
-      {% elif p.caption %}
-      <p class="snap-number">{{ p.caption }}</p>
       {% endif %}
     </div>
-    {% for heading, items in [("In the pool", p.drills), ("Think about", p.cues), ("On land", p.exercises)] if items %}
-    <h4>{{ heading }}</h4>
-    <ul class="drills">
-      {% for d in items %}
-      <li>
-        <details class="drill">
-          <summary><span class="drill-name">{{ d.name }}</span>{% if d.equipment %}<span class="kit">{{ d.equipment }}</span>{% endif %}</summary>
-          <p>{{ d.description }}{% if d.difficulty and d.difficulty != "easy" %} <span class="level">{{ d.difficulty|capitalize }}.</span>{% endif %}</p>
-        </details>
-      </li>
-      {% endfor %}
-    </ul>
-    {% endfor %}
+    {% if p.drills or p.cues or p.exercises %}
+    <div class="fix">
+      <div class="fix-groups">
+        {% for heading, items in [("In the pool", p.drills), ("Think about", p.cues), ("On land", p.exercises)] if items %}
+        <div>
+          <h4>{{ heading }}</h4>
+          <ul class="drills">
+            {% for d in items %}
+            <li>
+              <details class="drill">
+                <summary><span class="drill-name">{{ d.name }}</span>{% if d.equipment %}<span class="kit">{{ d.equipment }}</span>{% endif %}</summary>
+                {% if d.description %}<p>{{ d.description }}{% if d.difficulty and d.difficulty != "easy" %} <span class="level">{{ d.difficulty|capitalize }}.</span>{% endif %}</p>{% endif %}
+              </details>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
   </article>
   {% endfor %}
 </section>
 {% else %}
-<section class="work" aria-labelledby="work-h">
-  <h2 id="work-h">Nothing to fix in what we could see</h2>
-  <p>Every check we could run came back clean.{% if r.unchecked %} Some parts of your stroke weren't visible, though; see below.{% endif %}</p>
+<section class="card section">
+  <h2>Nothing to fix in what we could see</h2>
+  <p class="muted" style="margin-top:8px">Every check we could run came back clean.{% if r.unchecked %} Some parts of your stroke weren't visible, though; see below.{% endif %}</p>
 </section>
 {% endif %}
 
 {% if r.also %}
-<section class="also" aria-labelledby="also-h">
+<section class="card section" aria-labelledby="also-h">
   <h2 id="also-h">Also noticed</h2>
-  <ul>
-    {% for a in r.also %}<li><b>{{ a.name }}.</b> {{ a.observed }}</li>{% endfor %}
+  <ul class="advice-list" style="margin-top:14px">
+    {% for a in r.also %}<li><span class="dot dot-{{ 'estimated' if a.estimated else 'flagged' }}" aria-hidden="true"></span><b>{{ a.name }}</b><span class="muted">{{ a.observed }}</span></li>{% endfor %}
   </ul>
 </section>
 {% endif %}
 
-{% if r.unchecked %}
-<section class="unchecked" aria-labelledby="un-h">
-  <h2 id="un-h">What we couldn't check</h2>
-  <p class="section-note">We'd rather say so than guess.</p>
-  <ul>
-    {% for u in r.unchecked %}<li><b>{{ u.name }}.</b> {{ u.advice }}</li>{% endfor %}
-  </ul>
+<section class="card section" aria-labelledby="all-h">
+  <div class="section-head"><h2 id="all-h">All {{ r.lanes|length }} checks</h2><p>We'd rather say we couldn't see something than guess.</p></div>
+  <div class="checks-grid">
+    {% for key, label in [("flagged", "Needs work"), ("estimated", "May need work"), ("unchecked", "Couldn't check"), ("clear", "Looks good")] %}
+    {% set group = r.lanes|selectattr("status", "in", ["clear", "clear_est"] if key == "clear" else [key])|list %}
+    {% if group %}
+    <div class="check-group">
+      <h3><span class="dot dot-{{ key }}" aria-hidden="true"></span>{{ label }} <span class="count">{{ group|length }}</span></h3>
+      <ul class="lane-list">
+        {% for l in group %}
+        <li class="lane lane-{{ l.status }}">
+          <span>
+            <span class="lane-name">{{ l.name }}</span>
+            {% if l.status == "unchecked" and advice.get(l.name) %}<span class="muted small" style="display:block">{{ advice[l.name] }}</span>{% endif %}
+          </span>
+          {% if l.status == "clear_est" %}<span class="lane-note">estimated</span>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
 </section>
-{% endif %}
 
-{% if r.good %}
-<section class="good" aria-labelledby="good-h">
-  <h2 id="good-h">Looks good</h2>
-  <ul class="good-list">
-    {% for g in r.good %}<li>{{ g.name }}{% if g.estimated %}<span class="est-inline">estimated</span>{% endif %}</li>{% endfor %}
-  </ul>
-</section>
-{% endif %}
-
-<details class="numbers">
+<details class="card section measured">
   <summary>How we measured it</summary>
-  <p>Each score shows how close a measurement sits to the ideal range (100 = inside it).
-    Estimates have no score: they can raise a flag, but they aren't precise enough to grade.</p>
-  {% if r.fused %}<p>Some measurements combine both clips into a 3D picture of your typical stroke.
-    The two clips matched {{ (100 * r.fused_agreement)|round|int }}% on depth, the one thing both cameras see.</p>{% endif %}
+  <p class="intro-text">Each score shows how close a measurement sits to the ideal range (100 = inside it).
+    Estimates have no score: they can raise a flag, but they aren't precise enough to grade.
+    {% if r.fused %}Some measurements combine both clips into a 3D picture of your typical stroke; the two clips matched {{ (100 * r.fused_agreement)|round|int }}% on depth, the one thing both cameras see.{% endif %}</p>
   <div class="table-wrap">
   <table>
     <thead><tr><th scope="col">Measurement</th><th scope="col">Value</th><th scope="col">Score</th><th scope="col">From</th><th scope="col">Readable strokes</th></tr></thead>
     <tbody>
       {% for t in r.table %}
       <tr{% if t.estimate %} class="row-est"{% endif %}>
-        <th scope="row">{{ t.name }}{% if t.estimate %} <span class="est-inline">estimate</span>{% endif %}</th>
+        <th scope="row">{{ t.name }}</th>
         <td data-label="Value">{{ t.value }}</td><td data-label="Score">{% if t.score is not none %}{{ t.score }}/100{% else %}<span class="na">—</span>{% endif %}</td><td data-label="From">{{ t.source }}</td><td data-label="Readable strokes">{{ t.confidence }}%</td>
       </tr>
       {% endfor %}
@@ -129,10 +158,10 @@
   </div>
 </details>
 
-<p class="again">
-  <a class="go go-quiet" href="/analyses/new">Analyse another pair of clips</a>
-  <button type="button" class="go go-quiet print-report" hidden>Print or save as PDF</button>
-</p>
+<div class="page-actions">
+  <a class="btn btn-primary" href="/analyses/new">Analyse another pair of clips</a>
+  <a class="btn btn-secondary" href="/">All reports</a>
+</div>
 {% endblock %}
 {% block scripts %}
 <script src="/static/report.js" defer></script>

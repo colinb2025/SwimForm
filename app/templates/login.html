@@ -1,37 +1,46 @@
 {% extends "base.html" %}
+{% from "_macros.html" import brand %}
 {% block title %}Log in · SwimForm{% endblock %}
-{% block content %}
-<div class="entry">
-  <section class="entry-pitch">
-    <h1>See your freestyle the way a coach does</h1>
-    <p class="lede">Film two short clips of your swim. We check 14 parts of your stroke, tell you
-      what to work on first and which drills fix it, and say plainly what the cameras couldn't see.</p>
-    <ul class="mini-lanes" aria-hidden="true">
-      <li class="lane lane-flagged"><span class="rope"></span><span class="lane-name">Dropped elbow</span><span class="lane-status">Needs work</span></li>
-      <li class="lane lane-estimated"><span class="rope"></span><span class="lane-name">Sinking hips/legs</span><span class="lane-status">May need work</span></li>
-      <li class="lane lane-clear"><span class="rope"></span><span class="lane-name">Crossover entry</span><span class="lane-status">Looks good</span></li>
-    </ul>
-  </section>
+{% block shell %}
+<div class="auth">
+  <aside class="auth-panel">
+    {{ brand() }}
+    <div class="auth-pitch">
+      <h1>See your freestyle the way a coach does</h1>
+      <p>Film two short clips. We check 14 parts of your stroke, tell you what to work on first and
+        which drills fix it, and say plainly what the cameras couldn't see.</p>
+      <div class="preview-card" aria-hidden="true">
+        <p class="preview-title">From a sample report</p>
+        <div class="preview-row"><span class="dot dot-flagged"></span><span class="name">Dropped elbow</span><span class="pill pill-flagged">Needs work</span></div>
+        <div class="preview-row"><span class="dot dot-estimated"></span><span class="name">Sinking hips/legs</span><span class="pill pill-estimated">May need work</span></div>
+        <div class="preview-row"><span class="dot dot-clear"></span><span class="name">Crossover entry</span><span class="pill pill-clear">Looks good</span></div>
+      </div>
+    </div>
+    <p class="auth-foot">Built by a former Olympic Trials swimmer, for triathletes.</p>
+  </aside>
 
-  <section class="entry-form" aria-labelledby="login-h">
-    <h2 id="login-h">Log in</h2>
-    {% if error %}<div class="problem" role="alert"><p>{{ error }}</p></div>{% endif %}
-    {% if google_enabled %}
-    <a class="google-button" href="/auth/google/start{% if next and next != '/' %}?next={{ next|urlencode }}{% endif %}">Continue with Google</a>
-    <p class="or"><span>or</span></p>
-    {% endif %}
-    <form action="/login" method="post" class="stack">
-      <input type="hidden" name="next" value="{{ next }}">
-      <label>Email
-        <input type="email" name="email" value="{{ email }}" autocomplete="email" required autofocus>
-      </label>
-      <label>Password
-        <input type="password" name="password" autocomplete="current-password" required>
-      </label>
-      <p class="forgot"><a href="/forgot">Forgot your password?</a></p>
-      <button type="submit" class="go">Log in</button>
-    </form>
-    <p class="switch">New here? <a href="/signup">Create an account</a></p>
-  </section>
+  <main class="auth-main">
+    <div class="auth-form">
+      <h2>Log in</h2>
+      <p class="lead">Welcome back. Pick up where you left off.</p>
+      {% if error %}<div class="notice notice-error" role="alert"><p>{{ error }}</p></div><br>{% endif %}
+      {% if google_enabled %}
+      <a class="google-button" href="/auth/google/start{% if next and next != '/' %}?next={{ next|urlencode }}{% endif %}">Continue with Google</a>
+      <div class="divider">or</div>
+      {% endif %}
+      <form action="/login" method="post" class="stack">
+        <input type="hidden" name="next" value="{{ next }}">
+        <label class="field"><span>Email</span>
+          <input type="email" name="email" value="{{ email }}" autocomplete="email" required autofocus>
+        </label>
+        <div class="field">
+          <div class="row-between"><label class="field-label" for="pw">Password</label><a class="small" href="/forgot">Forgot your password?</a></div>
+          <input id="pw" type="password" name="password" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Log in</button>
+      </form>
+      <p class="switch">New here? <a href="/signup">Create an account</a></p>
+    </div>
+  </main>
 </div>
 {% endblock %}

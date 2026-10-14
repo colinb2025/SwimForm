@@ -1,8 +1,11 @@
-/* Barlow, self-hosted (SIL Open Font License 1.1, see OFL-LICENSE.txt). Latin subset. */
-@font-face { font-family: "Barlow"; font-style: normal; font-weight: 400; font-display: swap; src: url("/static/fonts/barlow-latin-400-normal.woff2") format("woff2"); }
-@font-face { font-family: "Barlow"; font-style: italic; font-weight: 400; font-display: swap; src: url("/static/fonts/barlow-latin-400-italic.woff2") format("woff2"); }
-@font-face { font-family: "Barlow"; font-style: normal; font-weight: 500; font-display: swap; src: url("/static/fonts/barlow-latin-500-normal.woff2") format("woff2"); }
-@font-face { font-family: "Barlow"; font-style: normal; font-weight: 600; font-display: swap; src: url("/static/fonts/barlow-latin-600-normal.woff2") format("woff2"); }
-@font-face { font-family: "Barlow Condensed"; font-style: normal; font-weight: 500; font-display: swap; src: url("/static/fonts/barlow-condensed-latin-500-normal.woff2") format("woff2"); }
-@font-face { font-family: "Barlow Condensed"; font-style: normal; font-weight: 600; font-display: swap; src: url("/static/fonts/barlow-condensed-latin-600-normal.woff2") format("woff2"); }
-@font-face { font-family: "Barlow Condensed"; font-style: normal; font-weight: 700; font-display: swap; src: url("/static/fonts/barlow-condensed-latin-700-normal.woff2") format("woff2"); }
+/* Archivo, self-hosted: one variable file with width (62-125) and weight (100-900) axes.
+   SIL Open Font License 1.1, see OFL-LICENSE.txt. Latin subset. */
+@font-face {
+  font-family: "Archivo";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  src: url("/static/fonts/archivo-latin-wdth-normal.woff2") format("woff2-variations"),
+       url("/static/fonts/archivo-latin-wdth-normal.woff2") format("woff2");
+}

@@ -9,9 +9,8 @@
     opened = [];
   });
 
-  var printBtn = document.querySelector(".print-report");
-  if (printBtn) {
-    printBtn.hidden = false;
-    printBtn.addEventListener("click", function () { window.print(); });
-  }
+  document.querySelectorAll(".print-report").forEach(function (b) {
+    b.hidden = false;
+    b.addEventListener("click", function () { window.print(); });
+  });
 })();
