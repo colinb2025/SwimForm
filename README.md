@@ -75,6 +75,26 @@ On synthetic swimmers whose true 3D motion is known, the fused recovery elbow an
 back within ~1–2° of the truth on poor footage, from laps with different start points and
 stroke rates.
 
+## Web app
+
+```bash
+pip install -e ".[app]"
+uvicorn app.main:app --reload        # then open http://127.0.0.1:8000
+```
+
+The athlete uploads a side-view and a head-on clip. Each clip is checked first
+(`swimform.viewcheck`): a swapped or diagonal camera, a swimmer who is barely in shot, or
+too few stroke cycles sends them back to the form with what to change. The report then
+shows every check as a lane: needs work, may need work (estimated), couldn't check (with
+what footage would fix it), or looks good, followed by drills, cues and land exercises for
+the top findings and a "how we measured it" table.
+
+The pose step is set by `SWIMFORM_POSE`. Until the fine-tuned model is wired in it defaults
+to `synthetic`: a simulated swimmer derived from the uploaded files, and every report says
+so in a "Demo data" banner. `SWIMFORM_POSE=yolo` with `SWIMFORM_WEIGHTS=path/to/best.pt`
+runs `swimform.pose` instead. Not built yet: accounts, billing, background jobs, cloud
+storage.
+
 ## Synthetic swimmers
 
 `swimform.synthetic` generates pose tracks for a swimmer with any mix of the workbook's
@@ -144,7 +164,9 @@ src/swimform/
   stroke3d.py          side + head-on tracks -> 3D average stroke -> 3D measurements
   analyze.py           side + head-on tracks -> measurements, faults, not-assessed reasons
   rules.py             workbook + measurements -> scores, faults, drills
+  viewcheck.py         is this clip the right angle, with enough swimmer and strokes?
   synthetic.py         synthetic swimmers with injectable faults
+app/                   web app: upload page, clip checks, report (FastAPI + Jinja)
   labeling/prep.py     pick frames worth labeling, pre-fill model guesses
   labeling/convert.py  Label Studio export -> YOLO-pose dataset
 rules/swim_rules.xlsx  metric, fault and drill definitions

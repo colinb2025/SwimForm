@@ -1,0 +1,233 @@
+/* SwimForm — pool deck palette. Red and yellow are reserved for meaning:
+   red = needs work, yellow = estimated, green = looks good, grey dashes = couldn't check. */
+:root {
+  --tile: #F5F9FA;
+  --ink: #10304F;
+  --ink-soft: #4E6679;
+  --water: #D6ECF1;
+  --water-deep: #A9D5E0;
+  --line: #C8D9E1;
+  --rope-red: #C42B30;
+  --rope-yellow: #E3A80B;
+  --good: #23775A;
+  --unchecked: #8DA2B1;
+  --paper: #FFFFFF;
+  --side: #1F6E8C;
+  --head: #6A4C93;
+  --radius-s: 4px;
+  --radius-l: 10px;
+  --display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --body: "Barlow", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--tile);
+  color: var(--ink);
+  font: 400 1.0625rem/1.55 var(--body);
+}
+a { color: var(--side); }
+:focus-visible { outline: 3px solid var(--rope-yellow); outline-offset: 2px; }
+
+.masthead {
+  padding: 18px 24px;
+  border-bottom: 3px solid var(--ink);
+  background: var(--paper);
+}
+.wordmark {
+  font: 700 1.6rem/1 var(--display);
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  text-decoration: none;
+}
+.page { max-width: 880px; margin: 0 auto; padding: 32px 20px 72px; }
+
+h1, h2, h3 { font-family: var(--display); font-weight: 600; line-height: 1.1; margin: 0; }
+h1 { font-size: clamp(2.2rem, 6vw, 3.4rem); font-weight: 700; max-width: 18ch; }
+h2 { font-size: 1.75rem; margin-bottom: 14px; }
+h3 { font-size: 1.45rem; }
+h4 { font: 600 1rem/1.3 var(--body); margin: 18px 0 6px; color: var(--ink-soft); }
+.lede { font-size: 1.2rem; color: var(--ink-soft); max-width: 60ch; margin: 14px 0 0; }
+section { margin-top: 44px; }
+section.intro { margin-top: 0; }
+
+/* ---------- upload: the pool diagram is the hero ---------- */
+.pool { margin: 32px 0 0; }
+.pool svg { width: 100%; height: auto; display: block; }
+.pool .deck { fill: #E9EFF2; }
+.pool .water { fill: var(--water); }
+.pool .ropes line { stroke: var(--paper); stroke-width: 4; stroke-dasharray: 10 10; }
+.pool .ropes-alt line { stroke: var(--rope-red); stroke-dashoffset: 10; }
+.pool .t-line { stroke: var(--ink); stroke-width: 5; opacity: 0.35; }
+.pool .wall { fill: var(--ink); }
+.pool .cone { opacity: 0.18; }
+.pool .cone-side { fill: var(--side); }
+.pool .cone-head { fill: var(--head); }
+.pool .swimmer ellipse, .pool .swimmer circle { fill: var(--ink); }
+.pool .swimmer path { stroke: var(--ink); stroke-width: 5; stroke-linecap: round; fill: none; }
+.pool .cam rect, .pool .cam circle { stroke: var(--paper); stroke-width: 2; }
+.pool .cam-side rect, .pool .cam-side circle { fill: var(--side); }
+.pool .cam-head rect, .pool .cam-head circle { fill: var(--head); }
+.pool .pool-label { font: 600 21px var(--body); fill: var(--ink); }
+.pool figcaption { color: var(--ink-soft); font-size: 0.95rem; margin-top: 8px; }
+
+.upload { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 28px; }
+.slot {
+  margin: 0; padding: 20px 20px 22px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-top: 6px solid var(--side);
+  border-radius: var(--radius-s);
+  display: flex; flex-direction: column;
+}
+.slot-head_on { border-top-color: var(--head); }
+.slot legend {
+  float: left; width: 100%; padding: 0;
+  font: 600 1.5rem/1.1 var(--display);
+  display: flex; align-items: center; gap: 10px;
+}
+.slot legend + * { clear: both; }
+.swatch { width: 14px; height: 14px; border-radius: 3px; background: var(--side); }
+.slot-head_on .swatch { background: var(--head); }
+.tips { margin: 12px 0 16px; padding-left: 18px; color: var(--ink-soft); font-size: 0.98rem; }
+.tips li + li { margin-top: 6px; }
+
+.file { margin-top: auto; display: grid; gap: 8px; cursor: pointer; }
+.file input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.file-button {
+  display: inline-block; justify-self: start;
+  padding: 10px 16px; border-radius: var(--radius-s);
+  border: 2px solid var(--ink); font-weight: 600;
+  background: var(--paper);
+}
+.file:hover .file-button { background: var(--water); }
+.file input:focus-visible + .file-button { outline: 3px solid var(--rope-yellow); outline-offset: 2px; }
+.file-name { font-size: 0.95rem; color: var(--ink-soft); overflow-wrap: anywhere; }
+.slot.chosen .file-name { color: var(--ink); font-weight: 500; }
+
+.problem {
+  margin: 0 0 16px; padding: 12px 14px;
+  border-left: 5px solid var(--rope-red);
+  background: #FBECEC;
+}
+.problem p { margin: 0; }
+.problem p + p { margin-top: 6px; }
+.slot.has-problem { border-color: var(--rope-red); }
+
+.submit { grid-column: 1 / -1; display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-top: 6px; }
+.go {
+  display: inline-block;
+  font: 600 1.25rem/1 var(--display); letter-spacing: 0.02em;
+  padding: 14px 26px; border: 0; border-radius: var(--radius-s);
+  background: var(--ink); color: var(--paper); text-decoration: none; cursor: pointer;
+}
+.go:hover { background: #1B4670; }
+.go:disabled { opacity: 0.7; cursor: progress; }
+.go-quiet { background: transparent; color: var(--ink); border: 2px solid var(--ink); }
+.go-quiet:hover { background: var(--water); }
+.hint { margin: 0; color: var(--ink-soft); font-size: 0.95rem; }
+
+/* ---------- report: the lane chart is the memorable thing ---------- */
+.demo {
+  margin-top: 18px; padding: 10px 14px; max-width: 64ch;
+  background: #FFF6DB; border-left: 5px solid var(--rope-yellow);
+}
+
+.legend { list-style: none; padding: 0; margin: 0 0 14px; display: flex; flex-wrap: wrap; gap: 6px 22px; color: var(--ink-soft); }
+.lg { display: flex; align-items: center; gap: 8px; }
+.lg b { color: var(--ink); }
+.rope-chip { width: 28px; height: 8px; border-radius: 4px; }
+
+.lane-list {
+  list-style: none; margin: 0; padding: 0;
+  background: var(--water);
+  border-radius: var(--radius-l);
+  border-right: 8px solid var(--ink);   /* the end wall */
+  overflow: hidden;
+}
+.lane {
+  position: relative;
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px;
+  padding: 16px 18px 20px;
+}
+.lane + .lane { border-top: 1px solid var(--water-deep); }
+.lane-name { font: 600 1.3rem/1.15 var(--display); }
+.lane-status { font-size: 0.95rem; font-weight: 600; white-space: nowrap; }
+/* each lane's rope: alternating floats in the status colour, like a real lane line */
+.rope, .rope-chip {
+  --c: var(--unchecked);
+  background: repeating-linear-gradient(90deg, var(--c) 0 14px, var(--paper) 14px 22px);
+}
+.rope { position: absolute; left: 0; right: 0; bottom: 0; height: 6px; }
+.lane-flagged   .rope, .lg-flagged   .rope-chip { --c: var(--rope-red); }
+.lane-estimated .rope, .lg-estimated .rope-chip { --c: var(--rope-yellow); }
+.lane-clear .rope, .lane-clear_est .rope, .lg-clear .rope-chip { --c: var(--good); }
+.lane-unchecked .rope, .lg-unchecked .rope-chip {
+  background: repeating-linear-gradient(90deg, var(--unchecked) 0 6px, transparent 6px 14px);
+}
+.lane-flagged   .lane-status { color: var(--rope-red); }
+.lane-estimated .lane-status { color: #8A6300; }
+.lane-clear .lane-status, .lane-clear_est .lane-status { color: var(--good); }
+.lane-unchecked .lane-status { color: var(--ink-soft); }
+.lane-unchecked .lane-name { color: var(--ink-soft); }
+
+.finding {
+  padding: 22px 22px 18px;
+  background: var(--paper);
+  border-left: 6px solid var(--rope-red);
+  border-radius: 0 var(--radius-s) var(--radius-s) 0;
+}
+.finding + .finding { margin-top: 18px; }
+.finding-est { border-left-color: var(--rope-yellow); }
+.est-tag { margin: 6px 0 0; font-size: 0.95rem; font-weight: 600; color: #8A6300; }
+.observed { font-size: 1.15rem; margin: 12px 0 4px; max-width: 62ch; }
+.why { color: var(--ink-soft); margin: 0; max-width: 62ch; }
+.drills { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.drills li { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.drill-name { font-weight: 600; }
+.kit { color: var(--ink-soft); font-size: 0.92rem; }
+
+.also ul, .unchecked ul { padding-left: 20px; margin: 0; max-width: 66ch; }
+.also li + li, .unchecked li + li { margin-top: 10px; }
+.section-note { margin: -6px 0 12px; color: var(--ink-soft); }
+.good-list { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px 10px; }
+.good-list li {
+  padding: 6px 12px; border-radius: 999px;
+  background: #E3F1EB; color: var(--good); font-weight: 600;
+}
+.est-inline {
+  margin-left: 8px; font-size: 0.8rem; font-weight: 600;
+  color: #8A6300; background: #FFF1C7; padding: 1px 7px; border-radius: 999px;
+}
+
+.numbers { margin-top: 44px; border-top: 1px solid var(--line); padding-top: 16px; }
+.numbers summary { font: 600 1.35rem/1.2 var(--display); cursor: pointer; }
+.numbers p { color: var(--ink-soft); max-width: 66ch; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; margin-top: 12px; font-size: 0.97rem; }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+thead th { font-weight: 600; color: var(--ink-soft); }
+tbody th { font-weight: 500; }
+td { font-variant-numeric: tabular-nums; }
+td:nth-child(2), td:nth-child(3), td:nth-child(5) { white-space: nowrap; }
+.na { color: var(--unchecked); }
+.row-est { background: #FFFBEF; }
+.again { margin-top: 40px; }
+
+@media (max-width: 680px) {
+  .page { padding: 24px 16px 56px; }
+  table, tbody, tr, th, td { display: block; }
+  thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  tbody tr { padding: 10px 0; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; }
+  tbody th { grid-column: 1 / -1; border: 0; padding: 0 0 4px; font-weight: 600; }
+  tbody td { border: 0; padding: 0; white-space: normal; }
+  tbody td::before { content: attr(data-label); display: block; font-size: 0.8rem; color: var(--ink-soft); }
+  .upload { grid-template-columns: 1fr; }
+  .lane { grid-template-columns: 1fr; gap: 2px; padding: 14px 16px 18px; }
+  .finding { padding: 18px 16px 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}

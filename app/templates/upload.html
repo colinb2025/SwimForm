@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Analyse your freestyle · SwimForm{% endblock %}
+{% block content %}
+<section class="intro">
+  <h1>Film your freestyle from two angles</h1>
+  <p class="lede">A side view and a head-on view, 15–30 seconds each of steady swimming, no turns.
+    Each clip is checked before we analyse it, so a wrong angle gets caught, not graded.</p>
+</section>
+
+<figure class="pool" aria-labelledby="pool-caption">
+  <svg viewBox="0 0 600 320" role="img" aria-labelledby="pool-title pool-desc">
+    <title id="pool-title">Where to put the two cameras</title>
+    <desc id="pool-desc">Top-down view of a pool. The swimmer is in a middle lane, swimming toward the end wall.
+      The side camera sits on the deck beside that lane, halfway along, facing across it.
+      The head-on camera sits at the end wall, centred on the lane, facing back down it.</desc>
+    <rect class="deck" x="0" y="0" width="600" height="320"/>
+    <rect class="water" x="10" y="30" width="480" height="200"/>
+    <g class="ropes">
+      <line x1="10" y1="80" x2="490" y2="80"/>
+      <line x1="10" y1="130" x2="490" y2="130"/>
+      <line x1="10" y1="180" x2="490" y2="180"/>
+    </g>
+    <g class="ropes ropes-alt">
+      <line x1="10" y1="80" x2="490" y2="80"/>
+      <line x1="10" y1="130" x2="490" y2="130"/>
+      <line x1="10" y1="180" x2="490" y2="180"/>
+    </g>
+    <line class="t-line" x1="40" y1="155" x2="460" y2="155"/>
+    <line class="t-line" x1="460" y1="145" x2="460" y2="165"/>
+    <rect class="wall" x="490" y="30" width="8" height="200"/>
+
+    <path class="cone cone-side" d="M250 282 L190 130 L310 130 Z"/>
+    <path class="cone cone-head" d="M528 155 L380 137 L380 173 Z"/>
+
+    <g class="swimmer" transform="translate(300 155)">
+      <ellipse rx="34" ry="7"/>
+      <circle cx="40" cy="0" r="7"/>
+      <path d="M30 -6 L58 -16 M10 6 L-6 18"/>
+    </g>
+
+    <g class="cam cam-side" transform="translate(250 288)">
+      <rect x="-16" y="-11" width="32" height="22" rx="4"/>
+      <circle cx="0" cy="-11" r="5"/>
+    </g>
+    <g class="cam cam-head" transform="translate(540 155)">
+      <rect x="-11" y="-16" width="22" height="32" rx="4"/>
+      <circle cx="-11" cy="0" r="5"/>
+    </g>
+    <text class="pool-label" x="276" y="296">Side camera</text>
+    <text class="pool-label" x="549" y="88" text-anchor="middle">Head-on</text>
+    <text class="pool-label" x="549" y="112" text-anchor="middle">camera</text>
+  </svg>
+  <figcaption id="pool-caption">Same swimmer, two camera spots. The clips can be from different laps.</figcaption>
+</figure>
+
+<form class="upload" action="/analyses" method="post" enctype="multipart/form-data" id="upload-form">
+  {% for slot, title, tips in [
+      ("side", "Side view",
+        ["On the deck, halfway down the lane, square to it — not at an angle.",
+         "Lens just below the surface if you can: it lets us see the catch and pull.",
+         "From above the water, we'll check what's visible and say what we couldn't."]),
+      ("head_on", "Head-on view",
+        ["At the end wall, centred on the lane, the swimmer coming toward the camera.",
+         "At water level, so shoulders, head and hands are all in view.",
+         "Start filming a few strokes before the swimmer reaches the flags."])] %}
+  <fieldset class="slot slot-{{ slot }}{% if problems.get(slot) %} has-problem{% endif %}">
+    <legend><span class="swatch" aria-hidden="true"></span>{{ title }}</legend>
+    <ul class="tips">
+      {% for t in tips %}<li>{{ t }}</li>{% endfor %}
+    </ul>
+    {% if problems.get(slot) %}
+    <div class="problem" role="alert">
+      {% for p in problems[slot] %}<p>{{ p }}</p>{% endfor %}
+    </div>
+    {% endif %}
+    <label class="file">
+      <input type="file" name="{{ slot }}" accept="video/*" required>
+      <span class="file-button">{{ "Choose side-view clip" if slot == "side" else "Choose head-on clip" }}</span>
+      <span class="file-name" data-empty="No clip chosen">No clip chosen</span>
+    </label>
+  </fieldset>
+  {% endfor %}
+  <div class="submit">
+    <button type="submit" class="go">Analyse my stroke</button>
+    <p class="hint">Takes about a minute. Your clips stay private.</p>
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+  document.querySelectorAll('.file input').forEach(function (input) {
+    var name = input.parentElement.querySelector('.file-name');
+    input.addEventListener('change', function () {
+      name.textContent = input.files.length ? input.files[0].name : name.dataset.empty;
+      input.closest('.slot').classList.toggle('chosen', input.files.length > 0);
+    });
+  });
+  document.getElementById('upload-form').addEventListener('submit', function (e) {
+    var b = this.querySelector('.go');
+    b.disabled = true;
+    b.textContent = 'Analysing…';
+  });
+</script>
+{% endblock %}
