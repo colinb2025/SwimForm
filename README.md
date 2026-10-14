@@ -4,16 +4,24 @@ Freestyle swim technique analysis. A video goes in; pose landmarks, biomechanica
 measurements, scored metrics, a short list of prioritised faults, and the drills
 that address them come out.
 
-Status: **early**. The rules engine runs end to end on synthetic measurements.
-The pose model does not work yet — see [docs/baseline-findings.md](docs/baseline-findings.md).
+Status: **early**. Metrics and rules run end to end on synthetic swimmers in the 15-point
+schema, for both camera views, with every workbook fault covered by tests. The pose model
+does not work yet — see [docs/baseline-findings.md](docs/baseline-findings.md).
 Every threshold in `rules/swim_rules.xlsx` is a draft awaiting expert review.
 
 ## The pipeline
 
 ```
-video ──▶ pose ──▶ stroke cycles ──▶ metrics ──▶ scores ──▶ faults ──▶ drills
-         (model)    (metrics.py)                     (rules.py, driven by the workbook)
+side video ────▶ pose ──▶ cycles ──▶ side metrics ─────┐
+                                                        ├─▶ scores ──▶ faults ──▶ drills
+head-on video ─▶ pose ──▶ cycles ──▶ head-on metrics ──┘
+               (model)   (metrics.py)              (analyze.py + rules.py, driven by the workbook)
 ```
+
+An analysis takes **both** a side-view and a head-on clip. Each metric is measured only from
+the view the workbook assigns it. If a clip shows too few readable stroke cycles for a metric,
+that metric — and any fault depending on it — comes back **not assessed**, with the reason,
+rather than guessed. A confident score from bad keypoints is worse than no score.
 
 Two layers, and only the first needs training:
 
@@ -34,12 +42,34 @@ pip install -e ".[pose]"
 # 1. landmarks + overlay video + per-joint detection rates
 python -m swimform.pose out/ yolo11m-pose.pt clips/*.mov
 
-# 2. stroke cycles and side-view measurements
-python -m swimform.metrics out/*_pose.json
+# 2. per-cycle measurements for one clip (pass --view if the JSON has no summary.view)
+python -m swimform.metrics out/clip_pose.json --view side
 
-# 3. validate the rules workbook and export it as JSON for the app
+# 3. full analysis: both views -> measurements, faults, drills, not-assessed reasons
+python -m swimform.analyze --side out/side_pose.json --head-on out/head_on_pose.json
+
+# validate the rules workbook and export it as JSON for the app
 python -m swimform.rules rules/swim_rules.xlsx --demo
 ```
+
+## Synthetic swimmers
+
+`swimform.synthetic` generates pose tracks for a swimmer with any mix of the workbook's
+faults, by `issue_id` and severity 0–1, in either view, at three footage qualities, from an
+underwater or a deck-level camera. It is how everything downstream of pose gets built and
+tested before the model works.
+
+```bash
+python -m swimform.analyze --synthetic dropped_elbow=1 late_breath=1 --camera deck
+python -m swimform.synthetic out/ --faults crossover_entry=0.8 --quality poor
+pip install -e ".[dev]" && pytest
+```
+
+The tests hold three lines against the real workbook:
+
+- a clean swimmer triggers **no** fault, across clean, noisy and poor footage, from either camera;
+- each of the 14 faults triggers its own issue when the footage can show it;
+- when it cannot (deck camera, underwater joint), the issue is reported not assessed.
 
 ## The rules workbook
 
@@ -74,9 +104,13 @@ the current model guesses, you correct, it retrains on your corrections.
 
 ```
 src/swimform/
+  schema.py            the 15-point keypoint schema (names, flip index, skeleton)
+  posedata.py          pose JSON <-> PoseTrack: the contract any pose model must meet
   pose.py              video  -> landmarks, overlay, detection rates
-  metrics.py           landmarks -> stroke cycles -> measurements
+  metrics.py           landmarks -> stroke cycles -> every workbook measurement, per view
+  analyze.py           side + head-on tracks -> measurements, faults, not-assessed reasons
   rules.py             workbook + measurements -> scores, faults, drills
+  synthetic.py         synthetic swimmers with injectable faults
   labeling/prep.py     pick frames worth labeling, pre-fill model guesses
   labeling/convert.py  Label Studio export -> YOLO-pose dataset
 rules/swim_rules.xlsx  metric, fault and drill definitions
@@ -86,6 +120,24 @@ docs/                  baseline findings, labeling guide
 
 Clips, frames, weights and pipeline output are gitignored. Nothing in this repo is
 large, and nothing in it is personal data.
+
+## Findings from building the metrics
+
+- **Deck-level coverage, measured.** From a deck camera, 6 of 14 faults are assessable
+  (crossover, low rotation, uneven rotation, lifting to breathe, late breath, straight-arm
+  recovery). The other 8 need the underwater view. This sharpens the camera decision below.
+- **`recovery_elbow_angle` misreads good technique from the side.** A high-elbow recovery
+  swings the arm out to the side; a side camera flattens that, so a textbook recovery
+  measures ~10° and scores ~11/100. It never triggers a fault (its rule also needs the elbow
+  below the hand), but the score is misleading. Options: measure it head-on, or set
+  `scored = no` and keep only `recovery_elbow_height`.
+- **Workbook edits for the 15-point schema** (no thresholds changed):
+  `head_lift_angle` and `breath_head_lift` now use top-of-head and the spine, and
+  `breath_timing` moved from `side` to `head_on`, since head rotation is not visible from
+  the side without face points.
+- **`pose.py`, `labeling/prep.py` and `labeling/convert.py` are still COCO-17** in this
+  branch. `PoseTrack` loads COCO files by name (face points dropped, spine points missing),
+  so nothing breaks; the labeling tools should import `schema.KEYPOINTS` and `FLIP_IDX`.
 
 ## Open decisions
 

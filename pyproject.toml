@@ -19,6 +19,10 @@ dependencies = [
 # backbone (e.g. RTMPose, Apache-2.0) before this ships as a product.
 pose = ["ultralytics>=8.3", "torch>=2.1"]
 label = ["label-studio>=1.11"]
+dev = ["pytest>=7"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
