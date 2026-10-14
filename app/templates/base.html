@@ -12,10 +12,31 @@
 <body>
   <header class="masthead">
     <a class="wordmark" href="/">SwimForm</a>
+    <nav class="nav" aria-label="Account">
+      {% if user %}
+      <a href="/">Your reports</a>
+      <a href="/analyses/new">New analysis</a>
+      <a href="/guide">Filming guide</a>
+      <form action="/logout" method="post" class="nav-form"><button type="submit" class="link-button">Log out</button></form>
+      {% else %}
+      <a href="/guide">Filming guide</a>
+      <a href="/login">Log in</a>
+      {% endif %}
+    </nav>
   </header>
   <main class="page">
     {% block content %}{% endblock %}
   </main>
+  <script>
+    /* Show stored UTC times in the reader's own time zone. */
+    document.querySelectorAll("time[data-local]").forEach(function (t) {
+      var d = new Date(t.getAttribute("datetime"));
+      if (isNaN(d)) return;
+      var opts = { day: "numeric", month: "short", year: "numeric" };
+      if (t.dataset.local === "datetime") { opts.hour = "numeric"; opts.minute = "2-digit"; }
+      t.textContent = d.toLocaleString(undefined, opts);
+    });
+  </script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

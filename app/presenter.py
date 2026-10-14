@@ -138,7 +138,8 @@ def build(record, rules):
     rate = rep["measurements"].get("stroke_rate", {}).get("value")
     s3 = rep.get("stroke3d") or {}
     return {
-        "id": record["id"], "created": record["created"][:10], "lanes": lanes, "counts": counts,
+        "id": record["id"], "created": record["created"][:10], "created_iso": record["created"],
+        "lanes": lanes, "counts": counts,
         "priorities": priorities, "also": also, "good": good, "unchecked": unchecked,
         "table": table, "stroke_rate": round(rate) if rate else None,
         "fused": bool(s3.get("used")), "fused_agreement": s3.get("view_agreement"),

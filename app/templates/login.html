@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Log in · SwimForm{% endblock %}
+{% block content %}
+<div class="entry">
+  <section class="entry-pitch">
+    <h1>See your freestyle the way a coach does</h1>
+    <p class="lede">Film two short clips of your swim. We check 14 parts of your stroke, tell you
+      what to work on first and which drills fix it, and say plainly what the cameras couldn't see.</p>
+    <ul class="mini-lanes" aria-hidden="true">
+      <li class="lane lane-flagged"><span class="rope"></span><span class="lane-name">Dropped elbow</span><span class="lane-status">Needs work</span></li>
+      <li class="lane lane-estimated"><span class="rope"></span><span class="lane-name">Sinking hips/legs</span><span class="lane-status">May need work</span></li>
+      <li class="lane lane-clear"><span class="rope"></span><span class="lane-name">Crossover entry</span><span class="lane-status">Looks good</span></li>
+    </ul>
+  </section>
+
+  <section class="entry-form" aria-labelledby="login-h">
+    <h2 id="login-h">Log in</h2>
+    {% if error %}<div class="problem" role="alert"><p>{{ error }}</p></div>{% endif %}
+    <form action="/login" method="post" class="stack">
+      <input type="hidden" name="next" value="{{ next }}">
+      <label>Email
+        <input type="email" name="email" value="{{ email }}" autocomplete="email" required autofocus>
+      </label>
+      <label>Password
+        <input type="password" name="password" autocomplete="current-password" required>
+      </label>
+      <button type="submit" class="go">Log in</button>
+    </form>
+    <p class="switch">New here? <a href="/signup">Create an account</a></p>
+  </section>
+</div>
+{% endblock %}

@@ -79,25 +79,6 @@
     });
   });
 
-  // Reports opened in this browser (stored on the device by the report page).
-  try {
-    var recent = JSON.parse(localStorage.getItem("swimform.recent") || "[]");
-    var box = document.querySelector(".recent");
-    if (recent.length && box) {
-      var ul = box.querySelector(".recent-list");
-      recent.forEach(function (r) {
-        var li = document.createElement("li");
-        var a = document.createElement("a");
-        a.href = "/analyses/" + encodeURIComponent(r.id);
-        a.textContent = r.date;
-        li.appendChild(a);
-        if (r.summary) li.appendChild(document.createTextNode(", " + r.summary));
-        ul.appendChild(li);
-      });
-      box.hidden = false;
-    }
-  } catch (e) { /* storage unavailable */ }
-
   var form = document.getElementById("upload-form");
   form.addEventListener("submit", function (e) {
     if (!window.XMLHttpRequest || !window.FormData) return;   // plain form post

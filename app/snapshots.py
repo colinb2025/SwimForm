@@ -55,8 +55,10 @@ def _underwater(a, s):
     that is rolled up during the recovery. Coordinates are relative to the shoulder
     midpoint, so 'down' means a good fraction of an upper arm below it."""
     sh, el, wr = (a[:, IDX[f"{s}_{j}"]] for j in ("shoulder", "elbow", "wrist"))
-    upper = np.nanmedian(np.linalg.norm(el - sh, axis=-1))
-    return wr[:, 1] > 0.35 * upper
+    lengths = np.linalg.norm(el - sh, axis=-1)
+    if np.isnan(lengths).all():
+        return np.zeros(len(wr), bool)
+    return wr[:, 1] > 0.35 * np.nanmedian(lengths)
 
 
 def _catch(a):

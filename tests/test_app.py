@@ -16,10 +16,17 @@ from swimform.viewcheck import check_clip, guess_view
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
-    from app import pipeline
+    """A logged-in browser."""
+    from app import auth, db, pipeline
     monkeypatch.setattr(pipeline, "DATA", tmp_path)
+    db.init(f"sqlite:///{tmp_path / 'test.sqlite3'}")
+    auth.limiter.fails.clear()
     from app.main import app
-    return TestClient(app)
+    c = TestClient(app)
+    r = c.post("/signup", data={"name": "Test Swimmer", "email": "swimmer@example.com", "password": "correct horse 1"},
+               follow_redirects=False)
+    assert r.status_code == 303
+    return c
 
 
 def upload(client, side=("lap1.mp4", b"side clip"), head_on=("lap2.mov", b"head clip")):
@@ -44,7 +51,7 @@ def view_for(client, response):
 
 # ------------------------------------------------------------------- pages
 def test_upload_page_shows_both_camera_spots(client):
-    r = client.get("/")
+    r = client.get("/analyses/new")
     assert r.status_code == 200
     assert 'name="side"' in r.text and 'name="head_on"' in r.text
     assert "Where to put the two cameras" in r.text
@@ -194,7 +201,7 @@ def test_fonts_are_self_hosted(client):
 
 
 def test_pages_load_their_scripts_and_work_without_them(client):
-    page = client.get("/").text
+    page = client.get("/analyses/new").text
     assert "/static/upload.js" in page and 'action="/analyses"' in page   # plain form post fallback
     rep = client.get(upload(client).headers["location"]).text
     assert "/static/report.js" in rep and "data-report-id" in rep

@@ -89,11 +89,24 @@ shows every check as a lane: needs work, may need work (estimated), couldn't che
 what footage would fix it), or looks good, followed by drills, cues and land exercises for
 the top findings and a "how we measured it" table.
 
+Athletes sign up with an email and password; the first screen is the log-in page, then
+"your reports", then upload. A report is visible only to the account that made it (anyone
+else gets "not found"). Passwords are hashed with scrypt; sessions are httpOnly cookies whose
+token is stored only as a hash; cross-site form posts are refused; repeated failed log-ins
+are rate-limited.
+
+| Setting | Default | |
+|---|---|---|
+| `SWIMFORM_DB` | `sqlite:///data/swimform.sqlite3` | any SQLAlchemy URL, e.g. Postgres in production |
+| `SWIMFORM_DATA` | `data/` | where uploads and report JSON are kept |
+| `SWIMFORM_SECURE_COOKIES` | `0` | set to `1` behind HTTPS |
+| `SWIMFORM_POSE` | `synthetic` | `yolo` to run the real pose model |
+
 The pose step is set by `SWIMFORM_POSE`. Until the fine-tuned model is wired in it defaults
 to `synthetic`: a simulated swimmer derived from the uploaded files, and every report says
 so in a "Demo data" banner. `SWIMFORM_POSE=yolo` with `SWIMFORM_WEIGHTS=path/to/best.pt`
-runs `swimform.pose` instead. Not built yet: accounts, billing, background jobs, cloud
-storage.
+runs `swimform.pose` instead. Not built yet: password reset (needs an email service),
+billing and plan limits, background jobs, cloud storage, account deletion.
 
 ## Synthetic swimmers
 
@@ -166,7 +179,7 @@ src/swimform/
   rules.py             workbook + measurements -> scores, faults, drills
   viewcheck.py         is this clip the right angle, with enough swimmer and strokes?
   synthetic.py         synthetic swimmers with injectable faults
-app/                   web app: upload page, clip checks, report (FastAPI + Jinja)
+app/                   web app: accounts, upload, clip checks, reports (FastAPI + Jinja)
   labeling/prep.py     pick frames worth labeling, pre-fill model guesses
   labeling/convert.py  Label Studio export -> YOLO-pose dataset
 rules/swim_rules.xlsx  metric, fault and drill definitions

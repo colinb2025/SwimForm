@@ -5,7 +5,7 @@
 <section class="intro report-intro" data-report-id="{{ r.id }}" data-report-date="{{ r.created }}" data-report-summary="{{ summary }}">
   <h1>Your stroke report</h1>
   <p class="lede">
-    {{ r.created }}{% if r.stroke_rate %}, swimming at {{ r.stroke_rate }} strokes a minute{% endif %}.
+    <time datetime="{{ r.created_iso }}" data-local="date">{{ r.created }}</time>{% if r.stroke_rate %}, swimming at {{ r.stroke_rate }} strokes a minute{% endif %}.
     We checked {{ r.lanes|length }} parts of your stroke.
   </p>
   {% if r.synthetic %}
@@ -130,7 +130,7 @@
 </details>
 
 <p class="again">
-  <a class="go go-quiet" href="/">Analyse another pair of clips</a>
+  <a class="go go-quiet" href="/analyses/new">Analyse another pair of clips</a>
   <button type="button" class="go go-quiet print-report" hidden>Print or save as PDF</button>
 </p>
 {% endblock %}
