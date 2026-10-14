@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Your stroke report · SwimForm{% endblock %}
+{% block content %}
+{% set summary = (r.counts.flagged ~ " to work on") if r.counts.flagged else ("nothing flagged" if not r.counts.estimated else (r.counts.estimated ~ " estimated")) %}
+<section class="intro report-intro" data-report-id="{{ r.id }}" data-report-date="{{ r.created }}" data-report-summary="{{ summary }}">
+  <h1>Your stroke report</h1>
+  <p class="lede">
+    <time datetime="{{ r.created_iso }}" data-local="date">{{ r.created }}</time>{% if r.stroke_rate %}, swimming at {{ r.stroke_rate }} strokes a minute{% endif %}.
+    We checked {{ r.lanes|length }} parts of your stroke.
+  </p>
+  {% if r.synthetic %}
+  <p class="demo" role="note">Demo data: this report comes from a simulated swimmer, not from your video.
+    Real analysis switches on when the pose model is connected.</p>
+  {% endif %}
+</section>
+
+<section class="lanes" aria-labelledby="lanes-h">
+  <h2 id="lanes-h">Every check, at a glance</h2>
+  <ul class="legend">
+    {% for key, label in [("flagged", "Needs work"), ("estimated", "May need work"), ("unchecked", "Couldn't check"), ("clear", "Looks good")] %}
+      {% set n = r.counts[key] + (r.counts["clear_est"] if key == "clear" else 0) %}
+      {% if n %}<li class="lg lg-{{ key }}"><span class="rope-chip" aria-hidden="true"></span>{{ label }} <b>{{ n }}</b></li>{% endif %}
+    {% endfor %}
+  </ul>
+  <ul class="lane-list">
+    {% for l in r.lanes %}
+    <li class="lane lane-{{ l.status }}">
+      <span class="rope" aria-hidden="true"></span>
+      <span class="lane-name">{{ l.name }}</span>
+      <span class="lane-status">{{ l.label }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+
+{% if r.priorities %}
+<section class="work" aria-labelledby="work-h">
+  <h2 id="work-h">What to work on first</h2>
+  {% for p in r.priorities %}
+  <article class="finding{% if p.estimated %} finding-est{% endif %}">
+    <header>
+      <h3>{{ p.name }}</h3>
+      {% if p.estimated %}<p class="est-tag">Estimated from what the cameras could see</p>{% endif %}
+    </header>
+    <div class="finding-body">
+      <div class="finding-text">
+        <p class="observed">{{ p.observed }}</p>
+        <p class="why">{{ p.why }}</p>
+      </div>
+      {% if p.snapshot %}
+      <figure class="snapshot">
+        {{ p.snapshot|safe }}
+        <figcaption>Your average stroke {{ p.snapshot_moment }}, {{ "side view" if p.snapshot_view == "side" else "head-on" }}.
+          {% if p.caption %}<span class="snap-number">{{ p.caption }}</span>{% endif %}</figcaption>
+      </figure>
+      {% elif p.caption %}
+      <p class="snap-number">{{ p.caption }}</p>
+      {% endif %}
+    </div>
+    {% for heading, items in [("In the pool", p.drills), ("Think about", p.cues), ("On land", p.exercises)] if items %}
+    <h4>{{ heading }}</h4>
+    <ul class="drills">
+      {% for d in items %}
+      <li>
+        <details class="drill">
+          <summary><span class="drill-name">{{ d.name }}</span>{% if d.equipment %}<span class="kit">{{ d.equipment }}</span>{% endif %}</summary>
+          <p>{{ d.description }}{% if d.difficulty and d.difficulty != "easy" %} <span class="level">{{ d.difficulty|capitalize }}.</span>{% endif %}</p>
+        </details>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endfor %}
+  </article>
+  {% endfor %}
+</section>
+{% else %}
+<section class="work" aria-labelledby="work-h">
+  <h2 id="work-h">Nothing to fix in what we could see</h2>
+  <p>Every check we could run came back clean.{% if r.unchecked %} Some parts of your stroke weren't visible, though; see below.{% endif %}</p>
+</section>
+{% endif %}
+
+{% if r.also %}
+<section class="also" aria-labelledby="also-h">
+  <h2 id="also-h">Also noticed</h2>
+  <ul>
+    {% for a in r.also %}<li><b>{{ a.name }}.</b> {{ a.observed }}</li>{% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+{% if r.unchecked %}
+<section class="unchecked" aria-labelledby="un-h">
+  <h2 id="un-h">What we couldn't check</h2>
+  <p class="section-note">We'd rather say so than guess.</p>
+  <ul>
+    {% for u in r.unchecked %}<li><b>{{ u.name }}.</b> {{ u.advice }}</li>{% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+{% if r.good %}
+<section class="good" aria-labelledby="good-h">
+  <h2 id="good-h">Looks good</h2>
+  <ul class="good-list">
+    {% for g in r.good %}<li>{{ g.name }}{% if g.estimated %}<span class="est-inline">estimated</span>{% endif %}</li>{% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<details class="numbers">
+  <summary>How we measured it</summary>
+  <p>Each score shows how close a measurement sits to the ideal range (100 = inside it).
+    Estimates have no score: they can raise a flag, but they aren't precise enough to grade.</p>
+  {% if r.fused %}<p>Some measurements combine both clips into a 3D picture of your typical stroke.
+    The two clips matched {{ (100 * r.fused_agreement)|round|int }}% on depth, the one thing both cameras see.</p>{% endif %}
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th scope="col">Measurement</th><th scope="col">Value</th><th scope="col">Score</th><th scope="col">From</th><th scope="col">Readable strokes</th></tr></thead>
+    <tbody>
+      {% for t in r.table %}
+      <tr{% if t.estimate %} class="row-est"{% endif %}>
+        <th scope="row">{{ t.name }}{% if t.estimate %} <span class="est-inline">estimate</span>{% endif %}</th>
+        <td data-label="Value">{{ t.value }}</td><td data-label="Score">{% if t.score is not none %}{{ t.score }}/100{% else %}<span class="na">—</span>{% endif %}</td><td data-label="From">{{ t.source }}</td><td data-label="Readable strokes">{{ t.confidence }}%</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</details>
+
+<p class="again">
+  <a class="go go-quiet" href="/analyses/new">Analyse another pair of clips</a>
+  <button type="button" class="go go-quiet print-report" hidden>Print or save as PDF</button>
+</p>
+{% endblock %}
+{% block scripts %}
+<script src="/static/report.js" defer></script>
+{% endblock %}
