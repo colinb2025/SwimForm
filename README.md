@@ -82,29 +82,32 @@ pip install -e ".[app]"
 uvicorn app.main:app --reload        # then open http://127.0.0.1:8000
 ```
 
-The athlete uploads a side-view and a head-on clip. Each clip is checked first
-(`swimform.viewcheck`): a swapped or diagonal camera, a swimmer who is barely in shot, or
-too few stroke cycles sends them back to the form with what to change. The report then
-shows every check as a lane: needs work, may need work (estimated), couldn't check (with
-what footage would fix it), or looks good, followed by drills, cues and land exercises for
-the top findings and a "how we measured it" table.
+The athlete uploads a side-view and a head-on clip. The upload returns at once and the
+analysis runs as a background job (`app/jobs.py`); the report page shows "measuring" until it
+finishes. Each clip is checked first (`swimform.viewcheck`): a swapped or diagonal camera, a
+swimmer who is barely in shot, or too few stroke cycles produces a "couldn't use these clips"
+page with what to change, never a report. The report shows every check as needs work, may
+need work (estimated), couldn't check (with what footage would fix it), or looks good, then
+drills, cues and land exercises for the top findings and a "how we measured it" table.
 
-Athletes sign up with an email and password; the first screen is the log-in page, then
-"your reports", then upload. A report is visible only to the account that made it (anyone
-else gets "not found"). Passwords are hashed with scrypt; sessions are httpOnly cookies whose
-token is stored only as a hash; cross-site form posts are refused; repeated failed log-ins
-are rate-limited.
+Accounts: email and password or Google; the first screen is the log-in page. A report is
+visible only to the account that made it. Account settings change name, email (the old
+address is notified) and password (other devices are logged out), and delete the account
+with every clip and report. Passwords are hashed with scrypt; sessions are httpOnly cookies
+stored only as a hash; cross-site form posts are refused; wrong passwords are rate-limited.
 
-| Setting | Default | |
-|---|---|---|
-| `SWIMFORM_DB` | `sqlite:///data/swimform.sqlite3` | any SQLAlchemy URL, e.g. Postgres in production |
-| `SWIMFORM_DATA` | `data/` | where uploads and report JSON are kept |
-| `SWIMFORM_SECURE_COOKIES` | `0` | set to `1` behind HTTPS |
-| `SWIMFORM_POSE` | `synthetic` | `yolo` to run the real pose model |
-| `SWIMFORM_BASE_URL` | from the request | public URL, used in reset emails and the Google redirect |
-| `SWIMFORM_EMAIL` | `console` | `smtp` or `ses`; `console` prints emails (dev) |
-| `SWIMFORM_EMAIL_FROM` | `no-reply@localhost` | sender, e.g. `SwimForm <no-reply@yourdomain.com>` |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | unset | turn on "Continue with Google" |
+**Setup, every setting, Google credentials, email and hosting: [docs/SETUP.md](docs/SETUP.md).**
+`docker compose up --build` runs the app with Postgres.
+
+## Is the pose model good enough?
+
+```bash
+python -m swimform.scorecard --data dataset_r3/data.yaml --weights r2.pt r3.pt --out card/ --draw 12
+```
+
+Grades the model against held-out labeled frames the way the analysis uses it: per keypoint,
+how often it is confident, how often a confident point is wrong (the number that matters most),
+left/right swaps, phantom points, missed swimmers. See [docs/labeling.md](docs/labeling.md#is-the-model-good-enough).
 
 **Password reset.** "Forgot your password?" emails a link that works once, for an hour, and
 signs the account out everywhere when used. The page gives the same answer whether or not an

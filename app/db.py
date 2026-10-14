@@ -71,6 +71,10 @@ class Analysis(Base):
     flagged: Mapped[int] = mapped_column(Integer, default=0)
     estimated: Mapped[int] = mapped_column(Integer, default=0)
     unchecked: Mapped[int] = mapped_column(Integer, default=0)
+    # queued -> running -> done | rejected (a clip failed its check) | failed (our fault)
+    status: Mapped[str] = mapped_column(String(16), default="done", index=True)
+    # rejected: JSON {slot: [fix, ...]}; failed: a short internal note (never shown raw)
+    problems: Mapped[str] = mapped_column(Text, default="")
 
 
 _engine = None
@@ -80,7 +84,8 @@ _Session = None
 def init(url=None):
     """(Re)connect; creates tables if missing. Called at app start and by tests."""
     global _engine, _Session
-    url = url or os.environ.get("SWIMFORM_DB") or f"sqlite:///{ROOT / 'data' / 'swimform.sqlite3'}"
+    data = Path(os.environ.get("SWIMFORM_DATA", ROOT / "data"))
+    url = url or os.environ.get("SWIMFORM_DB") or f"sqlite:///{data / 'swimform.sqlite3'}"
     if url.startswith("sqlite:///"):
         Path(url[len("sqlite:///"):]).parent.mkdir(parents=True, exist_ok=True)
     _engine = create_engine(url, connect_args={"check_same_thread": False} if url.startswith("sqlite") else {})
@@ -95,10 +100,16 @@ def _add_missing_columns(engine):
     Small and additive only; switch to Alembic before the schema changes in bigger ways."""
     from sqlalchemy import inspect, text
     have = {c["name"] for c in inspect(engine).get_columns("users")}
+    have_a = {c["name"] for c in inspect(engine).get_columns("analyses")}
     with engine.begin() as conn:
         if "google_sub" not in have:
             conn.execute(text("ALTER TABLE users ADD COLUMN google_sub VARCHAR(255)"))
             conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_sub ON users (google_sub)"))
+        if "status" not in have_a:   # rows from before background jobs were all finished
+            conn.execute(text("ALTER TABLE analyses ADD COLUMN status VARCHAR(16) NOT NULL DEFAULT 'done'"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_analyses_status ON analyses (status)"))
+        if "problems" not in have_a:
+            conn.execute(text("ALTER TABLE analyses ADD COLUMN problems TEXT NOT NULL DEFAULT ''"))
 
 
 def session() -> Session:

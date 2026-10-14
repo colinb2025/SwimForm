@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% from "_macros.html" import band %}
+{% block title %}We couldn't use these clips · SwimForm{% endblock %}
+{% block band %}
+{{ band("We couldn't use these clips", "We check every clip before measuring anything, so a clip we can't read never turns into a wrong report. Here's what to change.") }}
+{% endblock %}
+{% block content %}
+<div class="upload-grid">
+  {% for slot, title in [("side", "Side view"), ("head_on", "Head-on view")] %}
+  <section class="card">
+    <h2 style="margin-bottom:12px">{{ title }}</h2>
+    {% if problems.get(slot) %}
+    <div class="notice notice-error" role="alert"><div>{% for p in problems[slot] %}<p>{{ p }}</p>{% endfor %}</div></div>
+    {% else %}
+    <p class="muted">This clip looked fine.</p>
+    {% endif %}
+  </section>
+  {% endfor %}
+</div>
+<div class="page-actions">
+  <a class="btn btn-primary" href="/analyses/new">Upload new clips</a>
+  <a class="btn btn-secondary" href="/guide">Filming guide</a>
+</div>
+{% endblock %}

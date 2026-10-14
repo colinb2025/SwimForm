@@ -5,24 +5,24 @@ SwimForm web app.
 
 Public:   GET /login, /signup, /forgot, /reset, /guide, /auth/google/*
           POST /login, /signup, /forgot, /reset
-Account:  GET / -> your reports, /analyses/new, /analyses/{id}
-          POST /analyses, /logout
+Account:  GET / -> your reports, /analyses/new, /analyses/{id}, /analyses/{id}/status, /account
+          POST /analyses, /logout, /account/{name,email,password,sessions,delete}
 A report is visible only to the account that made it; anyone else gets "not found".
 """
+import json
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request, UploadFile
-import os
-
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from swimform import rules as R
 from swimform.analyze import DEFAULT_RULES
 
-from . import auth, db, google, mailer, pipeline, presenter
+from . import account, auth, db, google, jobs, mailer, pipeline, presenter
 
 HERE = Path(__file__).resolve().parent
 
@@ -30,6 +30,7 @@ HERE = Path(__file__).resolve().parent
 @asynccontextmanager
 async def lifespan(_app):
     db.init()
+    jobs.resume()
     yield
 
 
@@ -38,6 +39,16 @@ app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 templates = Jinja2Templates(directory=HERE / "templates")
 
 _rules_cache = {}
+
+
+def summarise(record):
+    """The small summary the reports list shows, from a finished analysis."""
+    view = presenter.build(record, rules())
+    return {"lanes": ",".join(l["status"] for l in view["lanes"]), "flagged": view["counts"]["flagged"],
+            "estimated": view["counts"]["estimated"], "unchecked": view["counts"]["unchecked"]}
+
+
+jobs.summarise = summarise
 
 
 def rules():
@@ -75,10 +86,11 @@ def _safe_next(nxt):
 
 # ------------------------------------------------------------------ accounts
 @app.get("/login", response_class=HTMLResponse)
-def login_page(request: Request, next: str = "/"):
+def login_page(request: Request, next: str = "/", deleted: str = ""):
     if request.state.user:
         return RedirectResponse(_safe_next(next), status_code=303)
-    return page(request, "login.html", {"next": _safe_next(next), "email": "", "error": None})
+    return page(request, "login.html", {"next": _safe_next(next), "email": "", "error": None,
+                                        "notice": "Your account and everything in it has been deleted." if deleted else None})
 
 
 @app.post("/login")
@@ -111,8 +123,8 @@ def signup_page(request: Request):
 def signup(request: Request, name: str = Form(""), email: str = Form(""), password: str = Form("")):
     email_n = email.strip().lower()
     errors = {}
-    if "@" not in email_n or "." not in email_n.split("@")[-1] or len(email_n) > 320:
-        errors["email"] = "Enter an email address like name@example.com."
+    if problem := auth.email_problem(email_n):
+        errors["email"] = problem
     if problem := auth.password_problem(password):
         errors["password"] = problem
     with db.session() as s:
@@ -209,6 +221,75 @@ def logout(request: Request):
     return resp
 
 
+# ------------------------------------------------------------------ account settings
+SAVED = {"name": "Name saved.", "email": "Email changed. We sent a note to your old address.",
+         "password": "Password saved. Any other devices have been logged out.",
+         "sessions": "Every other device has been logged out."}
+
+
+def account_page(request, errors=None, status_code=200, saved=None):
+    user = request.state.user
+    return page(request, "account.html", {"errors": errors or {}, "saved": SAVED.get(saved or ""),
+                "has_password": bool(user.password_hash), "google_linked": bool(user.google_sub),
+                "confirm_word": account.CONFIRM_WORD}, status_code)
+
+
+def _saved(what):
+    return RedirectResponse(f"/account?saved={what}", status_code=303)
+
+
+@app.get("/account", response_class=HTMLResponse)
+def account_settings(request: Request, saved: str = ""):
+    if request.state.user is None:
+        return login_redirect(request)
+    return account_page(request, saved=saved)
+
+
+@app.post("/account/name")
+def account_name(request: Request, name: str = Form("")):
+    if request.state.user is None:
+        return login_redirect(request)
+    account.update_name(request.state.user, name)
+    return _saved("name")
+
+
+@app.post("/account/email")
+def account_email(request: Request, email: str = Form(""), password: str = Form("")):
+    if request.state.user is None:
+        return login_redirect(request)
+    if err := account.change_email(request.state.user, email, password):
+        return account_page(request, {"email": err}, 422)
+    return _saved("email")
+
+
+@app.post("/account/password")
+def account_password(request: Request, current: str = Form(""), new: str = Form("")):
+    if request.state.user is None:
+        return login_redirect(request)
+    if err := account.change_password(request.state.user, current, new, request.cookies.get(auth.COOKIE)):
+        return account_page(request, {"password": err}, 422)
+    return _saved("password")
+
+
+@app.post("/account/sessions")
+def account_sessions(request: Request):
+    if request.state.user is None:
+        return login_redirect(request)
+    account.sign_out_others(request.state.user, request.cookies.get(auth.COOKIE))
+    return _saved("sessions")
+
+
+@app.post("/account/delete")
+def account_delete(request: Request, confirm: str = Form(""), password: str = Form("")):
+    if request.state.user is None:
+        return login_redirect(request)
+    if err := account.delete_account(request.state.user, confirm, password):
+        return account_page(request, {"delete": err}, 422)
+    resp = RedirectResponse("/login?deleted=1", status_code=303)
+    auth.clear_cookie(resp)
+    return resp
+
+
 # ------------------------------------------------------------------ reports
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
@@ -219,7 +300,8 @@ def home(request: Request):
     items = [{"id": a.id, "date": f"{a.created.day} {a.created:%b %Y}",
               "iso": (a.created if a.created.tzinfo else a.created.replace(tzinfo=db.now().tzinfo)).isoformat(),
               "lanes": a.lanes.split(",") if a.lanes else [],
-              "flagged": a.flagged, "estimated": a.estimated, "unchecked": a.unchecked} for a in rows]
+              "flagged": a.flagged, "estimated": a.estimated, "unchecked": a.unchecked,
+              "status": a.status} for a in rows]
     return page(request, "reports.html", {"items": items})
 
 
@@ -240,15 +322,13 @@ async def create_analysis(request: Request, side: UploadFile | None = None, head
         if up is not None and up.filename:
             files[slot] = (up.filename, up.file)
     try:
-        aid = pipeline.run(files)
+        aid = pipeline.queue(files)
     except pipeline.UploadProblem as e:
         return page(request, "upload.html", {"problems": e.problems}, 422)
-    view = presenter.build(pipeline.load(aid), rules())
     with db.session() as s:
-        s.add(db.Analysis(id=aid, user_id=user.id, lanes=",".join(l["status"] for l in view["lanes"]),
-                          flagged=view["counts"]["flagged"], estimated=view["counts"]["estimated"],
-                          unchecked=view["counts"]["unchecked"]))
+        s.add(db.Analysis(id=aid, user_id=user.id, status="queued"))
         s.commit()
+    jobs.submit(aid)
     return RedirectResponse(f"/analyses/{aid}", status_code=303)
 
 
@@ -257,10 +337,27 @@ def report_page(request: Request, aid: str):
     user = request.state.user
     if user is None:
         return login_redirect(request)
-    record = pipeline.load(aid) if auth.owned_analysis(user, aid) else None
+    row = auth.owned_analysis(user, aid)
+    if row is None:
+        return page(request, "missing.html", {}, 404)
+    if row.status in ("queued", "running"):
+        return page(request, "processing.html", {"aid": aid, "status": row.status})
+    if row.status == "rejected":
+        return page(request, "rejected.html", {"problems": json.loads(row.problems or "{}")})
+    if row.status == "failed":
+        return page(request, "failed.html", {}, 500)
+    record = pipeline.load(aid)
     if record is None:
         return page(request, "missing.html", {}, 404)
     return page(request, "report.html", {"r": presenter.build(record, rules())})
+
+
+@app.get("/analyses/{aid}/status")
+def report_status(request: Request, aid: str):
+    row = auth.owned_analysis(request.state.user, aid)
+    if row is None:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return {"status": row.status}
 
 
 @app.get("/guide", response_class=HTMLResponse)

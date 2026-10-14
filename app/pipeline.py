@@ -104,6 +104,16 @@ def save_uploads(files):
     aid = uuid.uuid4().hex[:12]
     folder = DATA / "analyses" / aid
     folder.mkdir(parents=True, exist_ok=True)
+    try:
+        paths, names = _write(folder, files)
+    except UploadProblem:
+        import shutil
+        shutil.rmtree(folder, ignore_errors=True)   # don't keep half an upload
+        raise
+    return aid, paths, names
+
+
+def _write(folder, files):
     paths, names = {}, {}
     for slot in SLOTS:
         name, fobj = files[slot]
@@ -118,13 +128,30 @@ def save_uploads(files):
         if size == 0:
             raise UploadProblem({slot: ["This file is empty."]})
         paths[slot], names[slot] = dest, name
-    return aid, paths, names
+    return paths, names
 
 
-def run(files, provider=None, rules_path=DEFAULT_RULES):
-    """Full upload-to-report run. Raises UploadProblem with per-slot fixes when a clip fails its check."""
+def folder(aid):
+    return DATA / "analyses" / aid
+
+
+def queue(files, provider=None):
+    """Save the uploads and note how to process them. Fast: runs inside the request.
+    Raises UploadProblem for problems visible without looking at the video."""
     aid, paths, names = save_uploads(files)
     provider = provider or os.environ.get("SWIMFORM_POSE", "synthetic")
+    with open(folder(aid) / "upload.json", "w") as f:
+        json.dump({"files": names, "paths": {k: v.name for k, v in paths.items()}, "provider": provider}, f)
+    return aid
+
+
+def process(aid, rules_path=DEFAULT_RULES):
+    """Pose -> clip check -> analysis -> report.json. Slow: runs in a background job.
+    Raises UploadProblem with per-slot fixes when a clip fails its check."""
+    with open(folder(aid) / "upload.json") as f:
+        up = json.load(f)
+    paths = {slot: folder(aid) / name for slot, name in up["paths"].items()}
+    names, provider = up["files"], up["provider"]
     tracks = PROVIDERS[provider](paths, names)
     checks = {slot: check_clip(tracks[slot], slot) for slot in SLOTS}
     problems = {slot: c["problems"] for slot, c in checks.items() if not c["ok"]}
@@ -136,9 +163,23 @@ def run(files, provider=None, rules_path=DEFAULT_RULES):
     report = analyze(tracks, rules, top_n=3)
     record = {"id": aid, "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),
               "files": names, "pose_provider": provider, "report": report}
-    with open(DATA / "analyses" / aid / "report.json", "w") as f:
+    with open(folder(aid) / "report.json", "w") as f:
         json.dump(record, f, default=str, indent=1)
+    return record
+
+
+def run(files, provider=None, rules_path=DEFAULT_RULES):
+    """Upload-to-report in one go (scripts and tests)."""
+    aid = queue(files, provider)
+    process(aid, rules_path)
     return aid
+
+
+def remove(aid):
+    """Delete everything stored for one analysis: clips, pose, report."""
+    import shutil
+    if aid.isalnum():
+        shutil.rmtree(folder(aid), ignore_errors=True)
 
 
 def load(aid):

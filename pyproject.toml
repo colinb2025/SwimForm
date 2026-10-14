@@ -21,6 +21,8 @@ pose = ["ultralytics>=8.3", "torch>=2.1"]
 label = ["label-studio>=1.11"]
 # Web app (app/): run from the repo root with `uvicorn app.main:app --reload`.
 app = ["fastapi>=0.110", "jinja2>=3.1", "python-multipart>=0.0.9", "uvicorn>=0.29", "sqlalchemy>=2.0", "httpx>=0.27"]
+# Only for a Postgres SWIMFORM_DB (postgresql+psycopg://...).
+postgres = ["psycopg[binary]>=3.1"]
 # Only for SWIMFORM_EMAIL=ses (Amazon SES).
 ses = ["boto3>=1.34"]
 dev = ["pytest>=7", "httpx>=0.27"]

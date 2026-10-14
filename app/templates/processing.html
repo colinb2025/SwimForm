@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% from "_macros.html" import band %}
+{% block title %}Measuring your stroke · SwimForm{% endblock %}
+{% block head %}<noscript><meta http-equiv="refresh" content="6"></noscript>{% endblock %}
+{% block band %}
+{{ band("Measuring your stroke", "This usually takes about a minute. You can leave this page: the report will be waiting in Your reports.") }}
+{% endblock %}
+{% block content %}
+<section class="card job" data-status-url="/analyses/{{ aid }}/status" aria-live="polite">
+  <ol class="job-steps">
+    <li class="done"><span class="step-dot" aria-hidden="true"></span>Clips uploaded</li>
+    <li class="{{ 'active' if status == 'running' else 'next' }}"><span class="step-dot" aria-hidden="true"></span>Checking both camera angles and finding you in each clip</li>
+    <li class="next"><span class="step-dot" aria-hidden="true"></span>Measuring 14 parts of your stroke</li>
+    <li class="next"><span class="step-dot" aria-hidden="true"></span>Choosing what to work on first</li>
+  </ol>
+  <div class="progress working"><div class="bar"><span style="width:100%"></span></div>
+    <p class="progress-label">{{ "Working on it." if status == "running" else "In the queue. It'll start in a moment." }}</p></div>
+</section>
+<div class="page-actions">
+  <a class="btn btn-secondary" href="/">Your reports</a>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/processing.js" defer></script>
+{% endblock %}

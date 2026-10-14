@@ -17,11 +17,14 @@
       <span>
         <time class="report-date" datetime="{{ it.iso }}" data-local="datetime">{{ it.date }}</time>
         <span class="report-sum" style="display:block">
-          {% if it.flagged %}{{ it.flagged }} to work on{% elif not it.estimated %}Nothing flagged{% endif %}{% if it.estimated %}{% if it.flagged %} · {% endif %}{{ it.estimated }} estimated{% endif %}{% if it.unchecked %} · {{ it.unchecked }} not checked{% endif %}
+          {% if it.status in ("queued", "running") %}<span class="pill pill-unchecked" style="margin-left:0">Measuring…</span>
+          {% elif it.status == "rejected" %}<span class="pill pill-estimated" style="margin-left:0">Clips need re-filming</span>
+          {% elif it.status == "failed" %}<span class="pill pill-flagged" style="margin-left:0">Didn't finish</span>
+          {% elif it.flagged %}{{ it.flagged }} to work on{% elif not it.estimated %}Nothing flagged{% endif %}{% if it.estimated %}{% if it.flagged %} · {% endif %}{{ it.estimated }} estimated{% endif %}{% if it.unchecked %} · {{ it.unchecked }} not checked{% endif %}
         </span>
       </span>
       <span class="chev" aria-hidden="true">›</span>
-      <span class="strip" aria-hidden="true">{% for st in it.lanes %}<i class="seg seg-{{ st }}"></i>{% endfor %}</span>
+      {% if it.lanes %}<span class="strip" aria-hidden="true">{% for st in it.lanes %}<i class="seg seg-{{ st }}"></i>{% endfor %}</span>{% endif %}
     </a>
   </li>
   {% endfor %}

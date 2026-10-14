@@ -96,8 +96,11 @@ def test_measurement_names_are_sentence_case(client):
 
 def test_swapped_clips_are_caught_with_a_fix(client):
     r = upload(client, side=("headon_lap.mp4", b"a"), head_on=("front.mov", b"b"))
-    assert r.status_code == 422
-    assert "Did the two clips get swapped?" in text(r.text)
+    assert r.status_code == 303                   # clip checks run in the job, after upload
+    page = client.get(r.headers["location"])
+    assert "We couldn't use these clips" in text(page.text)
+    assert "Did the two clips get swapped?" in text(page.text)
+    assert "Clips need re-filming" in text(client.get("/").text)
 
 
 def test_missing_and_non_video_files_are_rejected(client):

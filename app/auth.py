@@ -53,6 +53,13 @@ def verify_password(password: str, stored: str) -> bool:
         return False
 
 
+def email_problem(email: str):
+    e = email.strip().lower()
+    if "@" not in e or "." not in e.split("@")[-1] or len(e) > 320 or " " in e:
+        return "Enter an email address like name@example.com."
+    return None
+
+
 def password_problem(password: str):
     if len(password) < MIN_PASSWORD:
         return f"Use at least {MIN_PASSWORD} characters."

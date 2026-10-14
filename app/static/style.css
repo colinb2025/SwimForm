@@ -425,7 +425,7 @@ td:nth-child(2), td:nth-child(3), td:nth-child(5) { white-space: nowrap; }
 
 /* ---------- guide ---------- */
 .guide-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-.guide-grid > .card, .upload-grid > *, .checks-grid > * { margin-top: 0; }
+.guide-grid > .card, .upload-grid > .card, .upload-grid > *, .checks-grid > * { margin-top: 0; }
 .guide-card h2 { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
 .guide-card .mini { width: 84px; height: 52px; }
 .list-dots { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; color: var(--ink-2); }
@@ -510,3 +510,35 @@ td:nth-child(2), td:nth-child(3), td:nth-child(5) { white-space: nowrap; }
   .drill p { margin-left: 0; }
   .measured summary::after { display: none; }
 }
+
+/* ---------------------------------------------------------------- analysis in progress */
+.job-steps { list-style: none; margin: 0 0 24px; padding: 0; display: grid; gap: 14px; }
+.job-steps li { display: flex; align-items: center; gap: 12px; color: var(--ink-3); }
+.job-steps li.done, .job-steps li.active { color: var(--ink); }
+.job-steps li.active { font-weight: 600; }
+.step-dot { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line-2); display: grid; place-items: center; }
+.job-steps li.done .step-dot { background: var(--green); border-color: var(--green); }
+.job-steps li.done .step-dot::after { content: ""; width: 9px; height: 5px; border: 2px solid #fff; border-top: 0; border-right: 0; transform: translateY(-1px) rotate(-45deg); }
+.job-steps li.active .step-dot { border-color: var(--aqua); border-top-color: transparent; animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .job-steps li.active .step-dot { animation: none; border-top-color: var(--aqua); } }
+
+/* reports list: rows still being measured, or that need new clips */
+.report-row .pill { margin-left: 8px; vertical-align: 2px; }
+
+/* ---------------------------------------------------------------- account settings */
+.settings { display: grid; gap: 20px; }
+.settings > .card { margin-top: 0; }
+.setting { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 32px; align-items: start; }
+.setting-text h2 { font-size: 1.1rem; }
+.setting-text p { color: var(--ink-2); margin-top: 6px; font-size: 0.95rem; }
+.setting form, .setting .stack { max-width: 420px; }
+.signin-methods { display: grid; gap: 8px; color: var(--ink-2); }
+.signin-methods li { display: flex; align-items: center; gap: 10px; }
+.setting-danger { border: 1px solid #F2C9C7; }
+.setting-danger h2 { color: #A2302B; }
+.btn-danger { background: var(--red); color: #fff; border-color: var(--red); }
+.btn-danger:hover { background: #B23530; border-color: #B23530; }
+.notice-ok { background: var(--green-soft); color: #17714F; }
+.notice-ok::before { background: var(--green); }
+@media (max-width: 860px) { .setting { grid-template-columns: 1fr; gap: 16px; } }

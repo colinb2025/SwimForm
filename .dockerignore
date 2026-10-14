@@ -1,0 +1,15 @@
+.git
+data/
+clips/
+runs/
+out/
+dataset*/
+round*/
+**/__pycache__
+*.pt
+*.mp4
+*.mov
+*.MOV
+*.MP4
+.env
+tests/

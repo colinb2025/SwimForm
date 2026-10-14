@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% from "_macros.html" import band %}
+{% block title %}Account settings · SwimForm{% endblock %}
+{% block band %}{{ band("Account settings", user.email) }}{% endblock %}
+{% block content %}
+{% if saved %}<div class="notice notice-ok" role="status" style="margin-bottom:20px"><p>{{ saved }}</p></div>{% endif %}
+
+{% macro current_pw(id) -%}
+{% if has_password %}
+<label class="field"><span>Current password</span>
+  <input type="password" name="{{ 'current' if id == 'pw' else 'password' }}" autocomplete="current-password" required>
+</label>
+{% endif %}
+{%- endmacro %}
+
+<div class="settings">
+  <section class="card setting" aria-labelledby="s-name">
+    <div class="setting-text"><h2 id="s-name">Name</h2><p>Shown on your reports.</p></div>
+    <form action="/account/name" method="post" class="stack">
+      <label class="field"><span class="visually-hidden">Name</span>
+        <input type="text" name="name" value="{{ user.name }}" autocomplete="name" maxlength="120"></label>
+      <div><button type="submit" class="btn btn-secondary">Save name</button></div>
+    </form>
+  </section>
+
+  <section class="card setting" aria-labelledby="s-email">
+    <div class="setting-text"><h2 id="s-email">Email</h2><p>Where password resets go. We'll let your old address know it changed.</p></div>
+    <form action="/account/email" method="post" class="stack" novalidate>
+      <label class="field"><span>New email</span>
+        <input type="email" name="email" autocomplete="email" required
+               {% if errors.email %}aria-invalid="true" aria-describedby="email-err"{% endif %}>
+        {% if errors.email %}<span class="error" id="email-err">{{ errors.email }}</span>{% endif %}
+      </label>
+      {{ current_pw("email") }}
+      <div><button type="submit" class="btn btn-secondary">Change email</button></div>
+    </form>
+  </section>
+
+  <section class="card setting" aria-labelledby="s-pw">
+    <div class="setting-text"><h2 id="s-pw">{{ "Password" if has_password else "Set a password" }}</h2>
+      <p>{% if has_password %}Changing it logs out every other device.{% else %}You sign in with Google. Add a password to log in with your email too.{% endif %}</p></div>
+    <form action="/account/password" method="post" class="stack" novalidate>
+      {{ current_pw("pw") }}
+      <label class="field"><span>New password</span>
+        <input type="password" name="new" autocomplete="new-password" required minlength="10"
+               aria-describedby="{{ 'pw-err' if errors.password else 'pw-help' }}" {% if errors.password %}aria-invalid="true"{% endif %}>
+        {% if errors.password %}<span class="error" id="pw-err">{{ errors.password }}</span>
+        {% else %}<span class="help" id="pw-help">At least 10 characters.</span>{% endif %}
+      </label>
+      <div><button type="submit" class="btn btn-secondary">{{ "Change password" if has_password else "Set password" }}</button></div>
+    </form>
+  </section>
+
+  <section class="card setting" aria-labelledby="s-signin">
+    <div class="setting-text"><h2 id="s-signin">Signing in</h2><p>Lost a phone, or logged in on a shared computer?</p></div>
+    <div class="stack">
+      <ul class="list-plain signin-methods">
+        <li><span class="dot dot-{{ 'clear' if has_password else 'unchecked' }}" aria-hidden="true"></span>Email and password: {{ "on" if has_password else "not set" }}</li>
+        <li><span class="dot dot-{{ 'clear' if google_linked else 'unchecked' }}" aria-hidden="true"></span>Google: {{ "connected" if google_linked else "not connected" }}</li>
+      </ul>
+      <form action="/account/sessions" method="post"><button type="submit" class="btn btn-secondary">Log out all other devices</button></form>
+    </div>
+  </section>
+
+  <section class="card setting setting-danger" aria-labelledby="s-del">
+    <div class="setting-text"><h2 id="s-del">Delete account</h2>
+      <p>Permanently deletes your account, every clip you've uploaded and every report. This can't be undone.</p></div>
+    <form action="/account/delete" method="post" class="stack" novalidate>
+      <label class="field"><span>Type <b>{{ confirm_word }}</b> to confirm</span>
+        <input type="text" name="confirm" autocomplete="off" required
+               {% if errors.delete %}aria-invalid="true" aria-describedby="del-err"{% endif %}>
+        {% if errors.delete %}<span class="error" id="del-err">{{ errors.delete }}</span>{% endif %}
+      </label>
+      {{ current_pw("del") }}
+      <div><button type="submit" class="btn btn-danger">Delete my account</button></div>
+    </form>
+  </section>
+</div>
+{% endblock %}

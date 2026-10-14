@@ -10,6 +10,7 @@
   <link rel="preload" href="/static/fonts/archivo-latin-wdth-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/fonts/fonts.css">
   <link rel="stylesheet" href="/static/style.css">
+  {% block head %}{% endblock %}
 </head>
 <body>
 {% block shell %}
@@ -31,6 +32,7 @@
           <div class="account-menu">
             <div class="who">{% if user.name %}<b>{{ user.name }}</b>{% endif %}<span>{{ user.email }}</span></div>
             <a class="menu-item" href="/">Your reports</a>
+            <a class="menu-item" href="/account">Account settings</a>
             <form action="/logout" method="post"><button type="submit" class="menu-item">Log out</button></form>
           </div>
         </details>

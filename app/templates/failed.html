@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Something went wrong · SwimForm{% endblock %}
+{% block page_class %}page-plain{% endblock %}
+{% block content %}
+<div class="auth-single">
+  <div class="card">
+    <h1>Something went wrong on our end</h1>
+    <p class="lead">Your clips were fine to upload, but the analysis stopped partway. It's been logged so we can fix it. Uploading the clips again usually works.</p>
+    <a class="btn btn-primary btn-block" href="/analyses/new">Try again</a>
+  </div>
+</div>
+{% endblock %}

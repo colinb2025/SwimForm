@@ -23,6 +23,7 @@
     <div class="auth-form">
       <h2>Log in</h2>
       <p class="lead">Welcome back. Pick up where you left off.</p>
+      {% if notice %}<div class="notice" role="status"><p>{{ notice }}</p></div><br>{% endif %}
       {% if error %}<div class="notice notice-error" role="alert"><p>{{ error }}</p></div><br>{% endif %}
       {% if google_enabled %}
       <a class="google-button" href="/auth/google/start{% if next and next != '/' %}?next={{ next|urlencode }}{% endif %}">Continue with Google</a>

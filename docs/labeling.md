@@ -28,6 +28,11 @@ and Import `tasks.json`.
     # 4. fine-tune
     yolo pose train data=dataset_rN/data.yaml model=yolo11m-pose.pt epochs=100 imgsz=960 batch=8
 
+    # 4b. grade it against the held-out clips (exit code 0 = passes the bar)
+    python -m swimform.scorecard --data dataset_rN/data.yaml \
+        --weights runs/pose/train_prev/weights/best.pt runs/pose/train/weights/best.pt \
+        --out scorecard_rN --draw 12
+
     # 5. re-run the harness with the new weights to generate round N+1's guesses
     python -m swimform.pose pose_out_rN runs/pose/train/weights/best.pt clips/*.mp4
 
@@ -58,3 +63,21 @@ Frames from one clip are near duplicates, so swimmer variety counts far more tha
 Not on "train a model." On labeled frames: a vendor can place points, you review.
 Your own time is better spent on the technique labels (dropped elbow / head lift and
 how severe), which nobody else can produce.
+
+## Is the model good enough?
+
+`swimform.scorecard` grades a model the way the analysis uses it. A keypoint at or above
+confidence 0.5 is trusted, and everything below it is ignored. So the numbers that matter are:
+
+- **confident-wrong**: trusted points more than 10% of body size off your label. These
+  become wrong measurements that nothing warns about, so this must stay the smallest
+  number (draft bar: 5% or less for every keypoint).
+- **coverage**: of the points you marked visible, how many the model trusts. Low coverage
+  only costs checks ("couldn't check"), never correctness.
+- **left/right swaps**, **phantom points** (confident where you placed nothing) and
+  **swimmer missed**.
+
+Every number is per keypoint, with visible and occluded points split. The table names the
+frames to look at first, and `--draw` saves them with your label in green and the model's
+in red. Pass two sets of weights to see whether a round actually improved things.
+The bar lives in `scorecard.BAR` and is a draft.

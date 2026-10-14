@@ -219,14 +219,19 @@ def test_cancelled_google_sign_in(app_, google_on):
     assert r.status_code == 400 and "cancelled" in r.text
 
 
-def test_old_databases_gain_the_google_column(tmp_path):
+@pytest.mark.sqlite_only
+def test_old_databases_gain_the_new_columns(tmp_path):
     import sqlite3
     from app import db
     path = tmp_path / "old.sqlite3"
     con = sqlite3.connect(path)
     con.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, email VARCHAR(320), name VARCHAR(120), "
                 "password_hash VARCHAR(255), created DATETIME)")
+    con.execute("CREATE TABLE analyses (id VARCHAR(32) PRIMARY KEY, user_id INTEGER, created DATETIME, "
+                "lanes TEXT, flagged INTEGER, estimated INTEGER, unchecked INTEGER)")
+    con.execute("INSERT INTO analyses VALUES ('abc123', 1, '2026-10-01', 'clear', 0, 0, 0)")
     con.commit(); con.close()
     db.init(f"sqlite:///{path}")
-    cols = [r[1] for r in sqlite3.connect(path).execute("PRAGMA table_info(users)")]
-    assert "google_sub" in cols
+    con = sqlite3.connect(path)
+    assert "google_sub" in [r[1] for r in con.execute("PRAGMA table_info(users)")]
+    assert con.execute("SELECT status, problems FROM analyses").fetchone() == ("done", "")   # old rows: finished
