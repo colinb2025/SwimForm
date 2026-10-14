@@ -28,7 +28,28 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(120), default="")
-    password_hash: Mapped[str] = mapped_column(String(255))
+    # Empty for accounts created through Google that never set a password.
+    password_hash: Mapped[str] = mapped_column(String(255), default="")
+    google_sub: Mapped[str | None] = mapped_column(String(255), unique=True, index=True, nullable=True)
+    created: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class PasswordReset(Base):
+    __tablename__ = "password_resets"
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    created: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    expires: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used: Mapped[bool] = mapped_column(default=False)
+
+
+class OAuthState(Base):
+    """One pending Google sign-in: ties the callback back to the browser that started it."""
+    __tablename__ = "oauth_states"
+    state: Mapped[str] = mapped_column(String(64), primary_key=True)
+    nonce: Mapped[str] = mapped_column(String(64))
+    verifier: Mapped[str] = mapped_column(String(128))
+    next_url: Mapped[str] = mapped_column(String(512), default="/")
     created: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
@@ -64,8 +85,20 @@ def init(url=None):
         Path(url[len("sqlite:///"):]).parent.mkdir(parents=True, exist_ok=True)
     _engine = create_engine(url, connect_args={"check_same_thread": False} if url.startswith("sqlite") else {})
     Base.metadata.create_all(_engine)
+    _add_missing_columns(_engine)
     _Session = sessionmaker(_engine, expire_on_commit=False)
     return _engine
+
+
+def _add_missing_columns(engine):
+    """Bring a database made by an earlier version up to date (columns added since).
+    Small and additive only; switch to Alembic before the schema changes in bigger ways."""
+    from sqlalchemy import inspect, text
+    have = {c["name"] for c in inspect(engine).get_columns("users")}
+    with engine.begin() as conn:
+        if "google_sub" not in have:
+            conn.execute(text("ALTER TABLE users ADD COLUMN google_sub VARCHAR(255)"))
+            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_sub ON users (google_sub)"))
 
 
 def session() -> Session:

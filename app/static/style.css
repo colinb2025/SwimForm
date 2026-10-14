@@ -73,6 +73,19 @@ a { color: var(--side); }
 .optional, .field-help { font-weight: 400; color: var(--ink-soft); font-size: 0.92rem; }
 .field-error { font-weight: 500; color: var(--rope-red); font-size: 0.95rem; }
 .switch { margin: 18px 0 0; color: var(--ink-soft); }
+.entry-narrow { grid-template-columns: minmax(0, 460px); justify-content: center; }
+.entry-form p { max-width: 60ch; }
+.forgot { margin: -8px 0 0; font-size: 0.95rem; }
+/* Plain text button for now. Before launch, swap in Google's official sign-in button
+   from their branding guidelines (developers.google.com/identity/branding-guidelines). */
+.google-button {
+  display: block; margin-top: 16px; padding: 12px 16px; text-align: center;
+  border: 2px solid var(--line); border-radius: var(--radius-s);
+  background: var(--paper); color: var(--ink); font-weight: 600; text-decoration: none;
+}
+.google-button:hover { border-color: var(--ink); }
+.or { display: flex; align-items: center; gap: 12px; color: var(--ink-soft); margin: 16px 0 0; }
+.or::before, .or::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
 .mini-lanes {
   list-style: none; margin: 28px 0 0; padding: 0; max-width: 460px;
   background: var(--water); border-radius: var(--radius-l); border-right: 8px solid var(--ink); overflow: hidden;

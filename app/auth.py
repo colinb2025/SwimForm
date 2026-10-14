@@ -7,6 +7,9 @@ Passwords, sessions, and request protections.
 - Cross-site requests: any state-changing request whose Origin (or Referer) names a
   different host is refused, on top of SameSite=Lax.
 - Login attempts: after 5 failures for an email in 15 minutes, further attempts wait.
+- Password reset: a random token emailed as a link; only its SHA-256 is stored; valid
+  for one hour, once. Using it signs the account out everywhere. Asking for a reset
+  never reveals whether an email has an account.
 """
 import base64
 import hashlib
@@ -37,6 +40,8 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(password: str, stored: str) -> bool:
+    if not stored:      # Google-only account with no password set
+        return False
     try:
         algo, n, r, p, salt, key = stored.split("$")
         if algo != "scrypt":
@@ -130,6 +135,47 @@ class LoginLimiter:
 
 
 limiter = LoginLimiter()
+reset_limiter = LoginLimiter(max_failures=3, window_s=3600)   # reset emails per address per hour
+
+RESET_MINUTES = 60
+
+
+def create_reset(user_id: int) -> str:
+    token = secrets.token_urlsafe(32)
+    with db.session() as s:
+        s.add(db.PasswordReset(token_hash=_token_hash(token), user_id=user_id,
+                               expires=db.now() + timedelta(minutes=RESET_MINUTES)))
+        s.commit()
+    return token
+
+
+def reset_user(token: str):
+    """The user a live reset token belongs to, without using it up; None if invalid."""
+    if not token:
+        return None
+    with db.session() as s:
+        row = s.get(db.PasswordReset, _token_hash(token))
+        if row is None or row.used:
+            return None
+        expires = row.expires if row.expires.tzinfo else row.expires.replace(tzinfo=db.now().tzinfo)
+        if expires < db.now():
+            return None
+        return s.get(db.User, row.user_id)
+
+
+def complete_reset(token: str, new_password: str):
+    """Set the new password, burn every outstanding reset for the account, and end all
+    its sessions. Returns the user, or None if the token is no longer valid."""
+    user = reset_user(token)
+    if user is None:
+        return None
+    with db.session() as s:
+        u = s.get(db.User, user.id)
+        u.password_hash = hash_password(new_password)
+        s.execute(delete(db.PasswordReset).where(db.PasswordReset.user_id == u.id))
+        s.execute(delete(db.LoginSession).where(db.LoginSession.user_id == u.id))
+        s.commit()
+        return u
 
 
 def owned_analysis(user, aid):

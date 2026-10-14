@@ -101,12 +101,32 @@ are rate-limited.
 | `SWIMFORM_DATA` | `data/` | where uploads and report JSON are kept |
 | `SWIMFORM_SECURE_COOKIES` | `0` | set to `1` behind HTTPS |
 | `SWIMFORM_POSE` | `synthetic` | `yolo` to run the real pose model |
+| `SWIMFORM_BASE_URL` | from the request | public URL, used in reset emails and the Google redirect |
+| `SWIMFORM_EMAIL` | `console` | `smtp` or `ses`; `console` prints emails (dev) |
+| `SWIMFORM_EMAIL_FROM` | `no-reply@localhost` | sender, e.g. `SwimForm <no-reply@yourdomain.com>` |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | unset | turn on "Continue with Google" |
+
+**Password reset.** "Forgot your password?" emails a link that works once, for an hour, and
+signs the account out everywhere when used. The page gives the same answer whether or not an
+email has an account, and sends at most three emails per address per hour. In development
+the email is printed to the server log. For production, set `SWIMFORM_EMAIL=ses` (install
+`.[ses]`; the sending domain must be verified in SES and the account out of the SES sandbox)
+or `smtp` with `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`.
+
+**Google sign-in.** In the Google Cloud console, create an OAuth client of type "Web
+application" (after setting up the OAuth consent screen) and add
+`<base url>/auth/google/callback` as an authorised redirect URI, e.g.
+`http://localhost:8000/auth/google/callback` for local use. Set `GOOGLE_CLIENT_ID` and
+`GOOGLE_CLIENT_SECRET`, and the button appears on the log-in and sign-up pages. A Google
+sign-in with the same verified email as an existing account joins that account. Before
+launch: replace the plain "Continue with Google" button with Google's official one from
+their branding guidelines, and publish the consent screen.
 
 The pose step is set by `SWIMFORM_POSE`. Until the fine-tuned model is wired in it defaults
 to `synthetic`: a simulated swimmer derived from the uploaded files, and every report says
 so in a "Demo data" banner. `SWIMFORM_POSE=yolo` with `SWIMFORM_WEIGHTS=path/to/best.pt`
-runs `swimform.pose` instead. Not built yet: password reset (needs an email service),
-billing and plan limits, background jobs, cloud storage, account deletion.
+runs `swimform.pose` instead. Not built yet: billing and plan limits, background jobs,
+cloud storage, account settings (change email or password, delete account).
 
 ## Synthetic swimmers
 

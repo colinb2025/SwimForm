@@ -10,6 +10,10 @@
 
   <section class="entry-form" aria-labelledby="signup-h">
     <h2 id="signup-h">Sign up</h2>
+    {% if google_enabled %}
+    <a class="google-button" href="/auth/google/start">Continue with Google</a>
+    <p class="or"><span>or</span></p>
+    {% endif %}
     <form action="/signup" method="post" class="stack" novalidate>
       <label><span>Name <span class="optional">(optional)</span></span>
         <input type="text" name="name" value="{{ name }}" autocomplete="name" maxlength="120">

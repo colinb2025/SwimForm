@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Choose a new password · SwimForm{% endblock %}
+{% block content %}
+<div class="entry entry-narrow">
+  <section class="entry-form" aria-labelledby="reset-h">
+    {% if valid %}
+    <h2 id="reset-h">Choose a new password</h2>
+    <p>Setting a new password signs you out on every other device.</p>
+    <form action="/reset" method="post" class="stack" novalidate>
+      <input type="hidden" name="token" value="{{ token }}">
+      <label>New password
+        <input type="password" name="password" autocomplete="new-password" required minlength="10" autofocus
+               aria-describedby="{{ 'pw-err' if error else 'pw-help' }}" {% if error %}aria-invalid="true"{% endif %}>
+        {% if error %}<span class="field-error" id="pw-err">{{ error }}</span>
+        {% else %}<span class="field-help" id="pw-help">At least 10 characters.</span>{% endif %}
+      </label>
+      <button type="submit" class="go">Save new password</button>
+    </form>
+    {% else %}
+    <h2 id="reset-h">This link has expired</h2>
+    <p>Reset links work for an hour and only once.</p>
+    <p><a class="go" href="/forgot">Send a new link</a></p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

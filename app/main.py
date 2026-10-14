@@ -3,7 +3,8 @@ SwimForm web app.
 
   uvicorn app.main:app --reload
 
-Public:   GET /login, /signup, /guide          POST /login, /signup
+Public:   GET /login, /signup, /forgot, /reset, /guide, /auth/google/*
+          POST /login, /signup, /forgot, /reset
 Account:  GET / -> your reports, /analyses/new, /analyses/{id}
           POST /analyses, /logout
 A report is visible only to the account that made it; anyone else gets "not found".
@@ -12,6 +13,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request, UploadFile
+import os
+
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -19,7 +22,7 @@ from fastapi.templating import Jinja2Templates
 from swimform import rules as R
 from swimform.analyze import DEFAULT_RULES
 
-from . import auth, db, pipeline, presenter
+from . import auth, db, google, mailer, pipeline, presenter
 
 HERE = Path(__file__).resolve().parent
 
@@ -57,6 +60,7 @@ async def protect(request: Request, call_next):
 def page(request, name, ctx=None, status_code=200):
     ctx = dict(ctx or {})
     ctx.setdefault("user", request.state.user)
+    ctx.setdefault("google_enabled", google.configured())
     return templates.TemplateResponse(request, name, ctx, status_code=status_code)
 
 
@@ -122,6 +126,78 @@ def signup(request: Request, name: str = Form(""), email: str = Form(""), passwo
         uid = user.id
     resp = RedirectResponse("/analyses/new", status_code=303)
     auth.set_cookie(resp, auth.start_session(uid))
+    return resp
+
+
+# ------------------------------------------------------------------ password reset
+def _base_url(request):
+    return (os.environ.get("SWIMFORM_BASE_URL") or str(request.base_url)).rstrip("/")
+
+
+@app.get("/forgot", response_class=HTMLResponse)
+def forgot_page(request: Request):
+    return page(request, "forgot.html", {"sent": False, "email": ""})
+
+
+@app.post("/forgot")
+def forgot(request: Request, email: str = Form("")):
+    key = email.strip().lower()
+    with db.session() as s:
+        user = db.user_by_email(s, key) if key else None
+    # Same answer whether or not the account exists, so this page can't be used to
+    # find out who has one. Rate-limited per address so it can't flood an inbox.
+    if user is not None and not auth.reset_limiter.blocked(key):
+        auth.reset_limiter.fail(key)
+        link = f"{_base_url(request)}/reset?token={auth.create_reset(user.id)}"
+        greeting = f"Hi {user.name.split()[0]}," if user.name else "Hi,"
+        mailer.send(user.email, "Reset your SwimForm password",
+                    f"{greeting}\n\nSomeone asked to reset the password for your SwimForm account. "
+                    f"If it was you, use this link within the next hour:\n\n{link}\n\n"
+                    "If it wasn't you, you can ignore this email. Your password won't change.\n")
+    return page(request, "forgot.html", {"sent": True, "email": email})
+
+
+@app.get("/reset", response_class=HTMLResponse)
+def reset_page(request: Request, token: str = ""):
+    valid = auth.reset_user(token) is not None
+    return page(request, "reset.html", {"token": token, "valid": valid, "error": None}, 200 if valid else 400)
+
+
+@app.post("/reset")
+def reset(request: Request, token: str = Form(""), password: str = Form("")):
+    if auth.reset_user(token) is None:
+        return page(request, "reset.html", {"token": "", "valid": False, "error": None}, 400)
+    if problem := auth.password_problem(password):
+        return page(request, "reset.html", {"token": token, "valid": True, "error": problem}, 422)
+    user = auth.complete_reset(token, password)
+    if user is None:
+        return page(request, "reset.html", {"token": "", "valid": False, "error": None}, 400)
+    resp = RedirectResponse("/", status_code=303)
+    auth.set_cookie(resp, auth.start_session(user.id))
+    return resp
+
+
+# ------------------------------------------------------------------ Google sign-in
+@app.get("/auth/google/start")
+def google_start(request: Request, next: str = "/"):
+    if not google.configured():
+        return page(request, "missing.html", {}, 404)
+    return RedirectResponse(google.start(request, _safe_next(next)), status_code=303)
+
+
+@app.get("/auth/google/callback")
+def google_callback(request: Request, state: str = "", code: str = "", error: str = ""):
+    if not google.configured():
+        return page(request, "missing.html", {}, 404)
+    if error:
+        msg = "Google sign-in was cancelled." if error == "access_denied" else "Google sign-in didn't complete. Please try again."
+        return page(request, "login.html", {"next": "/", "email": "", "error": msg}, 400)
+    try:
+        user, nxt = google.finish(request, state, code)
+    except google.GoogleSignInError as e:
+        return page(request, "login.html", {"next": "/", "email": "", "error": str(e)}, 400)
+    resp = RedirectResponse(_safe_next(nxt), status_code=303)
+    auth.set_cookie(resp, auth.start_session(user.id))
     return resp
 
 
