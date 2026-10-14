@@ -41,5 +41,7 @@ EDGES = (
 # Camera views. Names match the `view` column in rules/swim_rules.xlsx.
 SIDE, HEAD_ON = "side", "head_on"
 VIEWS = (SIDE, HEAD_ON)
+# Workbook view for metrics measured on the 3D stroke fused from both clips.
+BOTH = "both"
 
 CONF = 0.5  # keypoint confidence at or above which a point is trusted

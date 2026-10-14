@@ -310,8 +310,12 @@ def catch_upper_arm_angle(ctx, cyc):
     fv = _forearm_from_vertical(ctx, w)
     if np.isnan(fv).mean() > 0.5:
         return None
-    hit = np.where(fv <= 10)[0]
-    i = w[hit[0]] if len(hit) else w[int(np.nanargmin(fv))]
+    # The catch: the first moment the forearm is at its most vertical (first local
+    # minimum within 25 deg of vertical). A hard "within 10 deg" cutoff misses swimmers
+    # who never get fully vertical and then measures them far too late in the pull.
+    f = np.where(np.isnan(fv), np.inf, fv)
+    mins = [j for j in range(len(f)) if f[j] <= 25 and f[j] <= f[max(0, j - 1)] and f[j] <= f[min(len(f) - 1, j + 1)]]
+    i = w[mins[0]] if mins else w[int(np.argmin(f))]
     s = ctx.s
     d = ctx.tr.p(f"{s}_elbow")[i] - ctx.tr.p(f"{s}_shoulder")[i]
     return _val(np.degrees(np.arctan2(d[1], d[0] * ctx.sign)))
@@ -353,13 +357,8 @@ def _mid_recovery(ctx, cyc):
     return exit_ + int(np.nanargmin(np.abs(rel)))
 
 
-@metric("recovery_elbow_angle", SIDE)
-def recovery_elbow_angle(ctx, cyc):
-    i = _mid_recovery(ctx, cyc)
-    if i is None:
-        return None
-    s = ctx.s
-    return _val(interior_angle(ctx.tr.p(f"{s}_shoulder")[i], ctx.tr.p(f"{s}_elbow")[i], ctx.tr.p(f"{s}_wrist")[i]))
+# recovery_elbow_angle is measured in 3D (stroke3d.py): a side camera flattens the
+# outward swing of a high-elbow recovery, so its 2D angle misreads good technique.
 
 
 @metric("recovery_elbow_height", SIDE)
@@ -539,9 +538,16 @@ def _head_tracked(ctx, cyc):
     return ctx.tr.ok("top_of_head", "spine_at_neck")[a:b].mean() >= 0.5
 
 
+HEAD_PER_SHOULDER_WIDTH = 0.5   # head height ~ half shoulder width (crown to chin ~23cm, biacromial ~40-45cm)
+
+
 @metric("breath_head_lift", HEAD_ON)
 def breath_head_lift(ctx, cyc):
-    """Rise of the head during the breath vs non-breathing frames / head height."""
+    """Rise of the head during the breath vs non-breathing frames / head height.
+
+    Head-on, the head points at the camera, so its own height is foreshortened to
+    almost nothing; head height is taken as half the shoulder width instead.
+    """
     tr = ctx.tr
     if not _head_tracked(ctx, cyc):
         return None
@@ -553,8 +559,8 @@ def breath_head_lift(ctx, cyc):
     for _, _, i, j in _breaths(ctx):
         breathing[i:j + 1] = True
     base = _nanmed(rel[~breathing])
-    head_h = abs(base)
-    if math.isnan(base) or head_h == 0:
+    head_h = HEAD_PER_SHOULDER_WIDTH * ctx.width
+    if math.isnan(base) or not head_h > 0:
         return None
     k, _, i, j = events[0]
     during = rel[i:j + 1]
@@ -566,22 +572,48 @@ def breath_head_lift(ctx, cyc):
 @metric("breath_timing", HEAD_ON)
 def breath_timing(ctx, cyc):
     """(peak head turn - same-side hand exit) / cycle length; positive = breath late."""
-    tr = ctx.tr
     if not _head_tracked(ctx, cyc):
         return None
     events = _breath_in(ctx, cyc)
     if not events:
         return SKIP
     k, side, _, _ = events[0]
-    above = tr.p(f"{side}_wrist")[:, 1] < tr.p(f"{side}_shoulder")[:, 1]
-    known = tr.ok(f"{side}_wrist", f"{side}_shoulder")
-    rises = [i for i in range(1, tr.n) if above[i] and not above[i - 1] and known[i] and known[i - 1]]
     L = cyc[1] - cyc[0]
-    near = [i for i in rises if abs(i - k) <= 0.5 * L]
-    if not near:
-        return None
-    exit_ = min(near, key=lambda i: abs(i - k))
-    return _val((k - exit_) / L)
+    exits = _hand_exits(ctx, side)
+    # The breath belongs to the exit just before it (or a touch after, since the rise is
+    # detected partway out of the water). Prefer the hand reappearing (deck footage:
+    # it was hidden underwater), else its rise.
+    for kind in ("reappear", "rise"):
+        near = [i for i, kd in exits if kd == kind and k - 0.75 * L <= i <= k + 0.25 * L]
+        if near:
+            return _val((k - max(near)) / L)
+    return None
+
+
+def _hand_exits(ctx, side):
+    """Frames where a hand leaves the water, head-on: (frame, 'rise' | 'reappear').
+
+    'rise': the hand climbs through the midpoint of its own vertical range, measured
+    against the shoulder line so body bob cancels. Adaptive, so it does not assume
+    how far a given swimmer rolls. 'reappear': the hand becomes trusted again after
+    being hidden for a while, which on deck footage is the moment it breaks the surface.
+    """
+    tr = ctx.tr
+    line = 0.5 * (tr.p("l_shoulder")[:, 1] + tr.p("r_shoulder")[:, 1])
+    y = tr.p(f"{side}_wrist")[:, 1] - line
+    known = ~np.isnan(y)
+    out = []
+    if known.sum() >= 10:
+        lo, hi = np.nanpercentile(y, [10, 90])
+        level = 0.5 * (lo + hi)
+        for i in range(1, tr.n):
+            if known[i] and known[i - 1] and y[i] < level <= y[i - 1]:
+                out.append((i, "rise"))
+    gap = max(3, int(0.2 * ctx.fps))
+    for i in range(gap, tr.n):
+        if known[i] and not known[i - gap:i].any():
+            out.append((i, "reappear"))
+    return out
 
 
 @metric("kick_width", HEAD_ON)

@@ -1,20 +1,29 @@
 """
 Synthetic freestyle pose tracks with injectable technique faults.
 
-Lets metrics, rules, the two-view merge and anything downstream run end to end
+Lets metrics, rules, the two-view fusion and anything downstream run end to end
 before the fine-tuned model exists. Each fault is named by its `issue_id` in
 rules/swim_rules.xlsx and takes a severity in [0, 1], so a test can ask "does a
 severe dropped elbow trip the dropped_elbow rule, and does a clean swimmer trip
 nothing?" against the real workbook.
 
-This is a kinematic sketch, not a simulator: 2D projected positions whose shapes
-and timings are close enough to exercise the code. Lengths are allowed to
-foreshorten in projection, as they do on camera.
+One 3D body, two cameras. Joints are generated in body coordinates
+
+    X forward (direction of travel), Y down (depth), Z lateral (+ = swimmer's left)
+
+and each camera is a projection of the same body: the side camera (on the swimmer's
+right) sees (X, Y); the head-on camera sees (Z, Y), with the swimmer's right on
+image-left. Body roll is a real rotation about X, and whether a joint is underwater
+follows from its true depth. Because both views come from one body, the 3D stroke
+fused from them can be checked against ground truth (`truth3d`).
+
+This is a kinematic sketch, not a simulator: shapes and timings are close enough to
+exercise the code, and lengths may stretch slightly where two planar motions combine.
 
   python -m swimform.synthetic out/ --faults dropped_elbow=1 late_breath=0.6
 
-Body units: shoulder-to-hip 0.5, upper arm 0.3, forearm 0.3, thigh 0.42, shin 0.40.
-y points down (deeper) throughout, like image coordinates.
+Body units: half shoulder width 0.2, shoulder-to-hip 0.5, upper arm 0.3, forearm 0.3,
+thigh 0.42, shin 0.40.
 """
 import argparse, json, os
 import numpy as np
@@ -30,6 +39,8 @@ FAULTS = (
 )
 
 L_UP, L_FORE, L_THIGH, L_SHIN = 0.30, 0.30, 0.42, 0.40
+HALF_W, HIP_HALF_W = 0.20, 0.13
+SURFACE_Y = 0.03   # joints deeper than this are underwater
 
 # jitter (fraction of frame), per-point dropout, splash rate, whole-frame loss
 QUALITY = {
@@ -73,8 +84,9 @@ class Swimmer:
 
     @property
     def breath_center(self):
-        """Breathing-arm phase where the head is most turned: at pull end, or later."""
-        return self.pull_end + 0.50 * self["late_breath"]
+        """Breathing-arm phase where the head is most turned: at pull end, or as late as
+        the hand's re-entry (the workbook's 'still turned as the arm returns to the front')."""
+        return self.pull_end + self.recovery * self["late_breath"]
 
 
 # ------------------------------------------------------------------ helpers
@@ -107,10 +119,18 @@ def _kick(t, sw, offset):
 
 
 def _polar(r, ang):
+    """Point at distance r, angle `ang` below forward horizontal, in the (X, Y) plane."""
     return r * np.stack([np.cos(ang), np.sin(ang)], axis=-1)
 
 
-# Side-view pull: upper-arm angle a and forearm angle b, degrees below forward
+def _roll(yz, rho):
+    """Rotate (Y, Z) about the X axis; positive rho drives the right side (-Z) deeper."""
+    y, z = yz[..., 0], yz[..., 1]
+    c, s = np.cos(rho), np.sin(rho)
+    return np.stack([y * c - z * s, y * s + z * c], axis=-1)
+
+
+# Side-plane pull: upper-arm angle a and forearm angle b, degrees below forward
 # horizontal, against pull progress s. Forearm vertical (b=90) early with the
 # elbow still high (a~30) is a good catch; ~120 deg at the elbow mid-pull.
 _S = [0.0, 0.2, 0.5, 0.75, 1.0]
@@ -130,106 +150,60 @@ def _pull_angles(s, sw):
     return a, b
 
 
-def _side_arm(p, sw):
-    """(elbow, wrist, underwater) relative to the shoulder for arm phase p."""
+def _arm(p, sw, side, sh):
+    """
+    3D elbow and wrist for one arm at arm phase p.
+    side: -1 right arm, +1 left arm. sh: (T, 3) shoulder position.
+    Glide and pull: sagittal shape from the pull schedule, lateral path from the
+    entry line. Recovery: elbow swings up and out to the side, forearm hangs below it.
+    """
     n = len(p)
-    el, wr = np.zeros((n, 2)), np.zeros((n, 2))
-    under = np.zeros(n, bool)
+    el, wr = np.zeros((n, 3)), np.zeros((n, 3))
     s_end = 1.0 - 0.4 * sw["short_pull"]
-    a1, b1 = np.radians(10.0), np.radians(10.0)
-    E1, W1 = _polar(L_UP, a1), _polar(L_UP, a1) + _polar(L_FORE, b1)
+    a1 = np.radians(10.0)
+    E1 = _polar(L_UP, a1)
+    W1 = E1 + _polar(L_FORE, a1)
     ae, be = _pull_angles(np.array([s_end]), sw)
     E0 = _polar(L_UP, ae)[0]
     W0 = E0 + _polar(L_FORE, be)[0]
+    z_entry = side * (HALF_W - 0.26 * sw["crossover_entry"])   # crossover moves it inward
+
+    def place(m, e_xy, w_xy, e_z, w_z):
+        el[m, :2] = sh[m, :2] + e_xy
+        wr[m, :2] = sh[m, :2] + w_xy
+        el[m, 2], wr[m, 2] = e_z, w_z
 
     g = p < sw.glide
-    el[g], wr[g], under[g] = E1, W1, True
+    place(g, E1, W1, 0.5 * (sh[g, 2] + z_entry) + side * 0.03, z_entry)
 
     m = (p >= sw.glide) & (p < sw.pull_end)
     s = (p[m] - sw.glide) / sw.pull * s_end
     a, b = _pull_angles(s, sw)
-    el[m] = _polar(L_UP, a)
-    wr[m] = el[m] + _polar(L_FORE, b)
-    under[m] = True
+    e_xy = _polar(L_UP, a)
+    w_xy = e_xy + _polar(L_FORE, b)
+    w_z = np.interp(s / s_end, [0, .5, 1], [z_entry, side * .08, side * .15])
+    place(m, e_xy, w_xy, 0.5 * (sh[m, 2] + w_z) + side * 0.06, w_z)
 
     m = p >= sw.pull_end
     s = _smooth((p[m] - sw.pull_end) / sw.recovery)
-    lift = np.sin(np.pi * s)[:, None]
-    se = s ** 0.6                       # elbow leads the hand
-    e_n = E0 + (E1 - E0) * se[:, None] + np.array([0, -0.28]) * lift
-    w_n = W0 + (W1 - W0) * s[:, None] + np.array([0, -0.12]) * lift
-    # Straight-arm recovery: the arm swings over as a near-rigid spoke.
+    lift = np.sin(np.pi * s)
+    se = s ** 0.8                                   # elbow leads the hand slightly
+    # High-elbow recovery: elbow out to the side near shoulder height, hand hanging
+    # below it just above the water.
+    e_n = E0 + (E1 - E0) * se[:, None] + np.array([0, -0.10]) * lift[:, None]
+    w_n = W0 + (W1 - W0) * s[:, None] + np.array([0, -0.02]) * lift[:, None]
+    ez_n = side * (HALF_W + 0.25 * lift) * (1 - s) + (0.5 * (sh[m, 2] + z_entry) + side * 0.03) * s
+    wz_n = side * (HALF_W + 0.25 * lift) * (1 - s) + z_entry * s
+    # Straight-arm recovery: a rigid spoke swung over the top.
     ang = np.radians(np.interp(s, [0, 1], [np.degrees(np.arctan2(W0[1], W0[0])) % 360, 370]))
     w_f = _polar(0.58, ang)
     e_f = 0.5 * w_f
+    wz_f = side * (HALF_W + 0.10 * lift) * (1 - s) + z_entry * s
+    ez_f = 0.5 * (sh[m, 2] + wz_f)
     k = sw["wide_recovery_straight_arm"]
-    el[m] = (1 - k) * e_n + k * e_f
-    wr[m] = (1 - k) * w_n + k * w_f
-    return el, wr, under
-
-
-def _side(t, sw):
-    n = len(t)
-    P = np.zeros((n, NUM_KEYPOINTS, 2))
-    U = np.zeros((n, NUM_KEYPOINTS), bool)
-    phi = (t / sw.cycle_s) % 1.0
-    high, sink = sw["high_head_position"], sw["sinking_hips"]
-
-    def put(k, xy, under=False):
-        P[:, IDX[k]] = xy
-        U[:, IDX[k]] = under
-
-    bob = 0.012 * np.sin(4 * np.pi * phi)
-    neck = np.stack([np.zeros(n), bob], -1)
-    turn = _breath(t, sw, phi if sw.breath_side == "r" else (phi + 0.5) % 1)
-    put("spine_at_neck", neck)
-    head = neck + [0.20, -0.04 - 0.13 * high]
-    head[:, 1] += 0.03 * turn
-    put("top_of_head", head)
-    waist = neck + [-0.50, 0.02 + 0.09 * high + 0.09 * sink]
-    put("spine_at_waist", waist, True)
-    for sd, dx in (("r", 0.01), ("l", -0.01)):
-        put(f"{sd}_shoulder", neck + [dx, 0])
-        put(f"{sd}_hip", waist + [dx, 0], True)
-    leg_tilt = np.radians(4 + 12 * sink + 4 * high)
-    for sd, off, koff in (("r", 0.0, 0.0), ("l", 0.5, np.pi)):
-        e, w, u = _side_arm((phi + off) % 1, sw)
-        sh = P[:, IDX[f"{sd}_shoulder"]]
-        put(f"{sd}_elbow", sh + e, u)
-        put(f"{sd}_wrist", sh + w, u)
-        hip_a, knee_f = _kick(t, sw, koff)
-        th = np.pi - leg_tilt + hip_a          # pointing back and slightly down
-        hp = P[:, IDX[f"{sd}_hip"]]
-        kn = hp + _polar(L_THIGH, th)
-        an = kn + _polar(L_SHIN, th + knee_f)  # knee flex lifts the heel
-        put(f"{sd}_knee", kn, True)
-        put(f"{sd}_ankle", an, True)
-    return P, U
-
-
-def _head_on_arm(p, sw, sign, sh):
-    """sign -1: swimmer's right arm, which appears on image-left when head-on."""
-    xe = sign * (0.20 - 0.26 * sw["crossover_entry"])
-    n = len(p)
-    wr = np.zeros((n, 2))
-    under = np.zeros(n, bool)
-    g = p < sw.glide
-    wr[g], under[g] = [xe, 0.06], True
-    m = (p >= sw.glide) & (p < sw.pull_end)
-    s = (p[m] - sw.glide) / sw.pull
-    wr[m] = np.stack([np.interp(s, [0, .5, 1], [xe, sign * .08, sign * .15]),
-                      np.interp(s, [0, .5, 1], [.06, .22, .12])], -1)
-    under[m] = True
-    m = p >= sw.pull_end
-    s = _smooth((p[m] - sw.pull_end) / sw.recovery)
-    wr[m] = np.stack([sign * .15 + (xe - sign * .15) * s + sign * .22 * np.sin(np.pi * s),
-                      .12 - .06 * s - .30 * np.sin(np.pi * s)], -1)
-    el = sh + 0.5 * (wr - sh)
-    el[:, 0] += sign * 0.06
-    lift = np.zeros(n)
-    lift[m] = 0.08 * np.sin(np.pi * s)
-    el[:, 1] -= lift
-    return el, wr, under
+    place(m, (1 - k) * e_n + k * e_f, (1 - k) * w_n + k * w_f,
+          (1 - k) * ez_n + k * ez_f, (1 - k) * wz_n + k * wz_f)
+    return el, wr
 
 
 def roll_amplitudes(sw):
@@ -238,57 +212,64 @@ def roll_amplitudes(sw):
     return r, r * (1 - 0.45 * sw["rotation_asymmetry"])
 
 
-def _head_on(t, sw):
+def truth3d(sw, t):
+    """Ground-truth 3D joints (T, 15, 3) in body units: X fwd, Y down, Z lateral (+left)."""
     n = len(t)
-    P = np.zeros((n, NUM_KEYPOINTS, 2))
-    U = np.zeros((n, NUM_KEYPOINTS), bool)
+    J = np.zeros((n, NUM_KEYPOINTS, 3))
     phi = (t / sw.cycle_s) % 1.0
+    high, sink = sw["high_head_position"], sw["sinking_hips"]
+
+    def put(k, xyz):
+        J[:, IDX[k]] = xyz
+
     rr, rl = roll_amplitudes(sw)
     wave = np.sin(2 * np.pi * (phi - (sw.glide + sw.pull / 2) + 0.25))  # +1: right shoulder deepest
-    roll = np.radians(np.where(wave > 0, rr, rl) * wave)
+    rho = np.radians(np.where(wave > 0, rr, rl) * wave)
 
-    def put(k, xy, under=False):
-        P[:, IDX[k]] = xy
-        U[:, IDX[k]] = under
+    neck = np.stack([np.zeros(n), 0.012 * np.sin(4 * np.pi * phi), np.zeros(n)], -1)
+    put("spine_at_neck", neck)
+    for sd, z in (("r", -HALF_W), ("l", HALF_W)):
+        yz = _roll(np.tile([0.0, z], (n, 1)), rho)
+        put(f"{sd}_shoulder", neck + np.stack([np.zeros(n), yz[:, 0], yz[:, 1]], -1))
 
-    put("spine_at_neck", np.zeros((n, 2)))
-    w = 0.20
-    put("r_shoulder", np.stack([-w * np.cos(roll), w * np.sin(roll)], -1))
-    put("l_shoulder", np.stack([w * np.cos(roll), -w * np.sin(roll)], -1))
     turn = _breath(t, sw, phi if sw.breath_side == "r" else (phi + 0.5) % 1)
-    bside = -1.0 if sw.breath_side == "r" else 1.0
-    lift = 0.03 - 0.11 * sw["head_lift_on_breath"]       # + rolls down, - lifts up
-    put("top_of_head", np.stack([bside * 0.09 * turn,
-                                 -0.14 - 0.05 * sw["high_head_position"] + lift * turn], -1))
-    waist = np.tile([0.0, 0.10 + 0.04 * sw["sinking_hips"]], (n, 1))
-    put("spine_at_waist", waist, True)
-    hr, hw = 0.7 * roll, 0.13
-    put("r_hip", waist + np.stack([-hw * np.cos(hr), hw * np.sin(hr)], -1), True)
-    put("l_hip", waist + np.stack([hw * np.cos(hr), -hw * np.sin(hr)], -1), True)
-    for sd, sign, off, koff in (("r", -1.0, 0.0, 0.0), ("l", 1.0, 0.5, np.pi)):
-        sh = P[:, IDX[f"{sd}_shoulder"]]
-        e, wr, u = _head_on_arm((phi + off) % 1, sw, sign, sh)
-        put(f"{sd}_elbow", e, u)
-        put(f"{sd}_wrist", wr, u)
+    zside = -1.0 if sw.breath_side == "r" else 1.0
+    head_y = -0.04 - 0.13 * high + (0.03 - 0.11 * sw["head_lift_on_breath"]) * turn
+    put("top_of_head", neck + np.stack([np.full(n, 0.20), head_y, zside * 0.09 * turn], -1))
+
+    waist = neck + np.array([-0.50, 0.02 + 0.09 * high + 0.09 * sink, 0.0])
+    put("spine_at_waist", waist)
+    for sd, z in (("r", -HIP_HALF_W), ("l", HIP_HALF_W)):
+        yz = _roll(np.tile([0.0, z], (n, 1)), 0.7 * rho)
+        put(f"{sd}_hip", waist + np.stack([np.zeros(n), yz[:, 0], yz[:, 1]], -1))
+
+    leg_tilt = np.radians(4 + 12 * sink + 4 * high)
+    for sd, side, off, koff in (("r", -1.0, 0.0, 0.0), ("l", 1.0, 0.5, np.pi)):
+        sh = J[:, IDX[f"{sd}_shoulder"]]
+        e, w = _arm((phi + off) % 1, sw, side, sh)
+        put(f"{sd}_elbow", e)
+        put(f"{sd}_wrist", w)
         hip_a, knee_f = _kick(t, sw, koff)
-        hp = P[:, IDX[f"{sd}_hip"]]
-        spread = sign * 0.20 * sw["wide_kick"] * np.abs(np.sin(3 * np.pi * phi))
-        kn = np.stack([hp[:, 0] * .85, hp[:, 1] + .06 + .10 * hip_a], -1)
-        an = np.stack([kn[:, 0] * .85 + spread, kn[:, 1] + .05 + .06 * knee_f], -1)
-        put(f"{sd}_knee", kn, True)
-        put(f"{sd}_ankle", an, True)
-    return P, U
+        th = np.pi - leg_tilt + hip_a                   # pointing back, slightly down
+        hp = J[:, IDX[f"{sd}_hip"]]
+        kn_xy = hp[:, :2] + _polar(L_THIGH, th)
+        an_xy = kn_xy + _polar(L_SHIN, th + knee_f)     # knee flex lifts the heel
+        spread = side * 0.20 * sw["wide_kick"] * np.abs(np.sin(3 * np.pi * phi))
+        put(f"{sd}_knee", np.column_stack([kn_xy, hp[:, 2] * 0.85]))
+        put(f"{sd}_ankle", np.column_stack([an_xy, hp[:, 2] * 0.72 + spread]))
+    return J
 
 
 # ------------------------------------------------------------------ public
 def generate(view, swimmer=None, *, duration_s=12.0, fps=30.0, size=(1920, 1080),
-             facing="right", camera="underwater", quality="typical", seed=0):
+             facing="right", camera="underwater", quality="typical", seed=0, t0=0.0):
     """
-    A synthetic PoseTrack for one camera view.
+    A synthetic PoseTrack for one camera view of the swimmer.
 
-    camera: "underwater" sees below-water joints; "deck" mostly does not
-            (their confidence falls under the trust threshold), as on real deck footage.
+    camera: "underwater" sees below-water joints; "deck" sees them less the deeper they
+            are (shallow joints stay readable, the catch does not), as on real deck footage.
     facing: side view only — direction of travel in the image.
+    t0:     start time in seconds, so two views can come from different laps.
     """
     if view not in (SIDE, HEAD_ON):
         raise ValueError(f"view must be {SIDE!r} or {HEAD_ON!r}")
@@ -299,15 +280,14 @@ def generate(view, swimmer=None, *, duration_s=12.0, fps=30.0, size=(1920, 1080)
     jitter, dropout, splash, frame_loss = QUALITY[quality]
     W, H = size
     n = int(round(duration_s * fps))
-    t = np.arange(n) / fps
+    t = t0 + np.arange(n) / fps
+    J = truth3d(sw, t)
+    under = J[..., 1] > SURFACE_Y
 
     if view == SIDE:
-        P, U = _side(t, sw)
-        scale, cx, cy = 0.40, 0.62, 0.40
+        P, scale, cx, cy = J[..., [0, 1]], 0.40, 0.62, 0.40
     else:
-        P, U = _head_on(t, sw)
-        scale, cx, cy = 0.60, 0.50, 0.45
-
+        P, scale, cx, cy = J[..., [2, 1]], 0.60, 0.50, 0.45
     # Body units -> pixels, isotropic so angles survive the projection.
     px = np.empty_like(P)
     px[..., 0] = (cx + P[..., 0] * scale) * W
@@ -318,11 +298,14 @@ def generate(view, swimmer=None, *, duration_s=12.0, fps=30.0, size=(1920, 1080)
         for k in KEYPOINTS:
             if k.startswith("l_"):
                 conf[:, IDX[k]] = 0.62
-    under_factor = 0.95 if camera == "underwater" else 0.45
-    conf = np.where(U, conf * under_factor, conf)
-    if view == HEAD_ON and camera == "deck":
-        for k in ("l_knee", "r_knee", "l_ankle", "r_ankle"):
-            conf[:, IDX[k]] = 0.3
+    if camera == "underwater":
+        conf = np.where(under, conf * 0.95, conf)
+    else:
+        # From the deck, visibility fades with depth: a shoulder rolled ~13cm under is
+        # still readable, a hand at the catch (~40cm down) is not. Body units ~ metres.
+        d = np.clip(J[..., 1] - SURFACE_Y, 0, None)
+        fade = np.where(d <= 0.2, 1 - 0.5 * d / 0.2, np.maximum(0.35, 0.5 - (d - 0.2) * 1.5))
+        conf = conf * fade
     conf *= rng.uniform(0.96, 1.0, conf.shape)
     px += rng.normal(0, jitter * W, px.shape)
 
@@ -346,7 +329,7 @@ def generate(view, swimmer=None, *, duration_s=12.0, fps=30.0, size=(1920, 1080)
 
     data = np.concatenate([px, conf[..., None]], -1)
     meta = {"source": "synthetic", "seed": seed, "quality": quality, "camera": camera,
-            "facing": facing if view == SIDE else None,
+            "facing": facing if view == SIDE else None, "t0": t0,
             "truth": {"faults": sw.faults, "cycle_s": sw.cycle_s, "breath_side": sw.breath_side}}
     return PoseTrack(data, fps, size, view, meta)
 

@@ -15,10 +15,11 @@ import pytest
 from swimform import rules as R
 from swimform.analyze import MissingViewError, WorkbookMismatch, _check_registry, analyze
 from swimform import metrics as M
+from swimform import stroke3d as S3
 from swimform.metrics import REGISTRY, compute
 from swimform.posedata import PoseDataError, PoseTrack
 from swimform.schema import FLIP_IDX, HEAD_ON, IDX, KEYPOINTS, SIDE
-from swimform.synthetic import FAULTS, Swimmer, generate
+from swimform.synthetic import FAULTS, Swimmer, generate, truth3d
 
 WORKBOOK = str(Path(__file__).resolve().parents[1] / "rules" / "swim_rules.xlsx")
 
@@ -30,9 +31,12 @@ def rules():
     return r
 
 
-def session(faults=None, **kw):
-    sw = Swimmer(faults or {})
-    return {v: generate(v, sw, **kw) for v in (SIDE, HEAD_ON)}
+def session(faults=None, seed=0, **kw):
+    """Two clips from different laps: the head-on lap starts elsewhere in the stroke
+    and is swum a little faster, as two separate recordings would be."""
+    side = generate(SIDE, Swimmer(faults or {}, cycle_s=1.6), seed=seed, **kw)
+    head = generate(HEAD_ON, Swimmer(faults or {}, cycle_s=1.52), seed=seed + 100, t0=3.7, **kw)
+    return {SIDE: side, HEAD_ON: head}
 
 
 def triggered(report):
@@ -95,7 +99,7 @@ def test_every_workbook_issue_has_a_synthetic_fault(rules):
 # ----------------------------------------------------------------- metrics
 def test_every_workbook_metric_is_implemented_for_its_view(rules):
     _check_registry(rules)  # raises on any gap or view mismatch
-    assert {m["metric_id"] for m in rules["metrics"]} == set(REGISTRY)
+    assert {m["metric_id"] for m in rules["metrics"]} == set(REGISTRY) | set(S3.FUSED_REGISTRY)
 
 
 def test_view_mismatch_is_caught(rules):
@@ -232,3 +236,53 @@ def test_default_workbook_works_from_any_directory(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     report = analyze(session(seed=1))
     assert triggered(report) == set()
+
+
+# ------------------------------------------------------------- 3D average stroke
+def _true_recovery_angle(sw):
+    t = np.arange(0, sw.cycle_s, 1 / 120)
+    J = truth3d(sw, t)
+    p = (t / sw.cycle_s) % 1
+    m = p >= sw.pull_end
+    S, E, W = (J[:, IDX[k]] for k in ("r_shoulder", "r_elbow", "r_wrist"))
+    i = np.where(m)[0][np.argmin(np.abs(W[m, 0] - S[m, 0]))]
+    return float(S3.angle3d(S[i], E[i], W[i]))
+
+
+@pytest.mark.parametrize("quality", ["clean", "typical", "poor"])
+@pytest.mark.parametrize("severity", [0.0, 0.5, 1.0])
+def test_fused_recovery_angle_matches_ground_truth(quality, severity):
+    faults = {"wide_recovery_straight_arm": severity}
+    tracks = session(faults, quality=quality, seed=4)
+    r = S3.compute(tracks[SIDE], tracks[HEAD_ON])
+    assert r["reason"] is None and r["stroke"].agreement > 0.95
+    truth = _true_recovery_angle(Swimmer(faults))
+    assert r["values"]["recovery_elbow_angle"] == pytest.approx(truth, abs=5)
+
+
+def test_fusion_works_on_deck_footage():
+    tracks = session(quality="typical", camera="deck", seed=1)
+    r = S3.compute(tracks[SIDE], tracks[HEAD_ON])
+    assert r["values"]["recovery_elbow_angle"] == pytest.approx(_true_recovery_angle(Swimmer()), abs=6)
+
+
+def test_mismatched_clips_are_rejected_not_fused(rules):
+    tracks = session(seed=1)
+    head = tracks[HEAD_ON]
+    head.data = head.data[np.random.default_rng(0).permutation(head.n)]   # scrambled clip
+    report = analyze(tracks, rules)
+    assert "do not line up" in report["metrics_not_assessed"]["recovery_elbow_angle"]
+    assert report["stroke3d"]["used"] is False
+
+
+def test_good_recovery_now_scores_well(rules):
+    """The 2D side-view angle scored a textbook recovery ~11/100; the 3D one must not."""
+    report = analyze(session(quality="typical"), rules)
+    m = report["measurements"]["recovery_elbow_angle"]
+    assert m["view"] == "both" and m["score"] == 100 and m["view_agreement"] > 0.95
+
+
+def test_every_measurement_says_how_it_was_taken(rules):
+    report = analyze(session(quality="typical"), rules)
+    methods = {m["method"] for m in report["measurements"].values()}
+    assert methods == {"direct (side view)", "direct (head-on view)", "3D stroke fused from side + head-on"}

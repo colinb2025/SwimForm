@@ -18,8 +18,9 @@ head-on video ─▶ pose ──▶ cycles ──▶ head-on metrics ──┘
                (model)   (metrics.py)              (analyze.py + rules.py, driven by the workbook)
 ```
 
-An analysis takes **both** a side-view and a head-on clip. Each metric is measured only from
-the view the workbook assigns it. If a clip shows too few readable stroke cycles for a metric,
+An analysis takes **both** a side-view and a head-on clip. Each metric is measured from the
+view the workbook assigns it: `side`, `head_on`, or `both`, meaning the 3D average stroke
+fused from the two clips (below). Every measurement in the report says how it was taken. If a clip shows too few readable stroke cycles for a metric,
 that metric — and any fault depending on it — comes back **not assessed**, with the reason,
 rather than guessed. A confident score from bad keypoints is worse than no score.
 
@@ -56,11 +57,31 @@ python -m swimform.analyze --side out/side_pose.json --head-on out/head_on_pose.
 python -m swimform.rules rules/swim_rules.xlsx --demo
 ```
 
+## The 3D average stroke
+
+The two clips are separate laps, so no instant is filmed from both angles and joints can't
+be triangulated frame by frame. Freestyle repeats, so `swimform.stroke3d` instead:
+
+1. cuts each clip into stroke cycles and averages them into one typical cycle, by phase;
+2. lines the two typical cycles up using depth, the one axis both cameras see: the head-on
+   cycle is shifted in phase and scaled until its depth curves best match the side view's;
+3. takes forward position from the side, lateral position from head-on, and depth from both.
+
+How well the depth curves agree after alignment (r²) is reported with every 3D measurement;
+below 0.8 the fused stroke is not used and its metrics come back not assessed. It describes
+a *typical* stroke, so it suits faults that repeat every cycle, not one-offs.
+
+On synthetic swimmers whose true 3D motion is known, the fused recovery elbow angle comes
+back within ~1–2° of the truth on poor footage, from laps with different start points and
+stroke rates.
+
 ## Synthetic swimmers
 
 `swimform.synthetic` generates pose tracks for a swimmer with any mix of the workbook's
-faults, by `issue_id` and severity 0–1, in either view, at three footage qualities, from an
-underwater or a deck-level camera. It is how everything downstream of pose gets built and
+faults, by `issue_id` and severity 0–1, at three footage qualities, from an underwater or a
+deck-level camera. It is one 3D body projected into both views — body roll is a real
+rotation and visibility fades with true depth — so the 3D fusion can be checked against
+ground truth (`synthetic.truth3d`). It is how everything downstream of pose gets built and
 tested before the model works.
 
 ```bash
@@ -112,6 +133,7 @@ src/swimform/
   posedata.py          pose JSON <-> PoseTrack: the contract any pose model must meet
   pose.py              video  -> landmarks, overlay, detection rates
   metrics.py           landmarks -> stroke cycles -> every workbook measurement, per view
+  stroke3d.py          side + head-on tracks -> 3D average stroke -> 3D measurements
   analyze.py           side + head-on tracks -> measurements, faults, not-assessed reasons
   rules.py             workbook + measurements -> scores, faults, drills
   synthetic.py         synthetic swimmers with injectable faults
@@ -127,18 +149,18 @@ large, and nothing in it is personal data.
 
 ## Findings from building the metrics
 
-- **Deck-level coverage, measured.** From a deck camera, 6 of 14 faults are assessable
-  (crossover, low rotation, uneven rotation, lifting to breathe, late breath, straight-arm
-  recovery). The other 8 need the underwater view. This sharpens the camera decision below.
-- **`recovery_elbow_angle` misreads good technique from the side.** A high-elbow recovery
-  swings the arm out to the side; a side camera flattens that, so a textbook recovery
-  measures ~10° and scores ~11/100. It never triggers a fault (its rule also needs the elbow
-  below the hand), but the score is misleading. Options: measure it head-on, or set
-  `scored = no` and keep only `recovery_elbow_height`.
+- **Deck-level coverage.** With visibility fading by depth, a deck camera can assess 10 of
+  14 faults. The deep-catch ones (dropped elbow, straight-arm pull, short pull) and
+  over-gliding need underwater footage. Real coverage depends on how well the fine-tuned
+  model places `occluded` underwater joints; re-measure once it runs on real clips.
+- **`recovery_elbow_angle` is now measured in 3D.** A side camera flattens the outward swing
+  of a high-elbow recovery, so its 2D angle read a textbook recovery as ~10° (score 11/100).
+  On the fused 3D stroke it reads ~74° and scores 100. Its workbook view is now `both`.
 - **Workbook edits for the 15-point schema** (no thresholds changed):
-  `head_lift_angle` and `breath_head_lift` now use top-of-head and the spine, and
+  `head_lift_angle` and `breath_head_lift` now use top-of-head and the spine;
   `breath_timing` moved from `side` to `head_on`, since head rotation is not visible from
-  the side without face points.
+  the side without face points; `recovery_elbow_angle` moved to `both` (3D); and `both`
+  was added to the workbook's list of views.
 - **`pose.py`, `labeling/prep.py` and `labeling/convert.py` are still COCO-17** in this
   branch. `PoseTrack` loads COCO files by name (face points dropped, spine points missing),
   so nothing breaks; the labeling tools should import `schema.KEYPOINTS` and `FLIP_IDX`.

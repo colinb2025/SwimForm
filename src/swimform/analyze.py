@@ -1,8 +1,9 @@
 """
 One analysis = one side-view clip + one head-on clip.
 
-Each metric is measured only from the view the workbook assigns it, so a flaw is
-judged from the angle that can actually see it. A metric whose clip had too few
+Each metric is measured from the view the workbook assigns it (side, head_on, or
+both: the 3D average stroke fused from the two clips, see stroke3d.py), so a flaw is
+judged from the angle that can actually see it. Every measurement says how it was taken. A metric whose clip had too few
 readable stroke cycles is reported as not assessed, with the reason, and any issue
 that depends on it is reported as not assessed too. The athlete is never told about
 a fault the footage could not show.
@@ -17,13 +18,20 @@ import numpy as np
 
 from . import metrics as M
 from . import rules as R
+from . import stroke3d as S3
 from .posedata import PoseTrack
-from .schema import HEAD_ON, SIDE, VIEWS
+from .schema import BOTH, HEAD_ON, SIDE, VIEWS
 
 # Resolved from the package location so the default works from any directory.
 DEFAULT_RULES = str(Path(__file__).resolve().parents[2] / "rules" / "swim_rules.xlsx")
 MIN_CYCLES = 3          # fewer readable cycles than this and a metric is not assessed
 MIN_USABLE_FRAC = 0.5   # ...or if under half the detected cycles were readable
+
+METHOD = {
+    SIDE: "direct (side view)",
+    HEAD_ON: "direct (head-on view)",
+    BOTH: "3D stroke fused from side + head-on",
+}
 
 AGGREGATES = {
     "median": np.median, "min": np.min, "max": np.max,
@@ -44,7 +52,10 @@ def _check_registry(rules):
     errs = []
     for m in rules["metrics"]:
         mid = m["metric_id"]
-        if mid not in M.REGISTRY:
+        if m["view"] == BOTH:
+            if mid not in S3.FUSED_REGISTRY:
+                errs.append(f"{mid}: workbook says view=both, but stroke3d.py has no 3D version")
+        elif mid not in M.REGISTRY:
             errs.append(f"{mid}: in the workbook but not implemented in metrics.py")
         elif M.REGISTRY[mid][0] != m["view"]:
             errs.append(f"{mid}: workbook says view={m['view']}, metrics.py measures it from {M.REGISTRY[mid][0]}")
@@ -74,10 +85,26 @@ def analyze(tracks, rules=DEFAULT_RULES, require=VIEWS, top_n=3,
             raise MissingViewError(f"track supplied as {v!r} is a {tr.view!r} track")
 
     per_view = {v: M.compute(tr) for v, tr in tracks.items()}
+    fused = S3.compute(tracks[SIDE], tracks[HEAD_ON]) if SIDE in tracks and HEAD_ON in tracks else None
 
     measurements, per_cycle, detail, not_assessed = {}, {}, {}, {}
     for m in rules["metrics"]:
         mid, view = m["metric_id"], m["view"]
+        if view == BOTH:
+            if fused is None:
+                not_assessed[mid] = "needs both a side and a head-on video"
+            elif fused["reason"]:
+                not_assessed[mid] = fused["reason"]
+            elif fused["values"].get(mid) is None:
+                not_assessed[mid] = "not visible in the 3D stroke fused from both videos"
+            else:
+                st = fused["stroke"]
+                value = fused["values"][mid]
+                measurements[mid] = round(value, 3)
+                detail[mid] = {"value": round(value, 3), "view": BOTH, "method": METHOD[BOTH],
+                               "usable_cycles": min(st.cycles.values()), "cycles": min(st.cycles.values()),
+                               "confidence": round(st.agreement, 2), "view_agreement": st.agreement}
+            continue
         if view not in per_view:
             not_assessed[mid] = f"no {view} video"
             continue
@@ -102,8 +129,8 @@ def analyze(tracks, rules=DEFAULT_RULES, require=VIEWS, top_n=3,
         value = float(AGGREGATES[m["aggregate"]](usable))
         measurements[mid] = round(value, 3)
         per_cycle[mid] = usable
-        detail[mid] = {"value": round(value, 3), "view": view, "usable_cycles": len(usable),
-                       "cycles": n, "confidence": round(len(usable) / n, 2)}
+        detail[mid] = {"value": round(value, 3), "view": view, "method": METHOD[view],
+                       "usable_cycles": len(usable), "cycles": n, "confidence": round(len(usable) / n, 2)}
 
     result = R.evaluate(rules, measurements, per_cycle, top_n=top_n)
     for mid, s in result["scores"].items():
@@ -136,6 +163,12 @@ def analyze(tracks, rules=DEFAULT_RULES, require=VIEWS, top_n=3,
         "issues_not_assessed": issues_not_assessed,
         "issues_clear": issues_clear,  # checked, and not a problem
         "errors": {mid: msg for v in per_view.values() for mid, msg in v["errors"].items()},
+        "stroke3d": None if fused is None else {
+            "used": fused["reason"] is None,
+            "reason": fused["reason"],
+            "view_agreement": fused["stroke"].agreement if fused["stroke"] else None,
+            "cycles_averaged": fused["stroke"].cycles if fused["stroke"] else None,
+        },
     }
 
 

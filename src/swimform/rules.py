@@ -10,7 +10,7 @@ from collections import defaultdict
 from openpyxl import load_workbook
 
 ENUMS = {
-    "view": {"side", "head_on"},
+    "view": {"side", "head_on", "both"},
     "water": {"above", "below", "either"},
     "operator": {"<", "<=", ">", ">=", "between", "outside"},
     "type": {"drill", "exercise", "cue"},
