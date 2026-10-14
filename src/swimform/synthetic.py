@@ -41,6 +41,7 @@ QUALITY = {
 
 class Swimmer:
     def __init__(self, faults=None, cycle_s=1.6, breath_side="r", breath_every=1):
+        """breath_every: breathe once every N stroke cycles; 0 = no breath in the clip."""
         faults = dict(faults or {})
         for k in faults:
             if k not in FAULTS:
@@ -87,6 +88,8 @@ def _bump(phase, center, width):
 
 
 def _breath(t, sw, arm_phase):
+    if sw.breath_every == 0:   # holds breath for the whole clip
+        return np.zeros_like(t)
     b = _bump(arm_phase, sw.breath_center, 0.18)
     if sw.breath_every > 1:
         k = np.floor(t / sw.cycle_s + 0.5 - sw.breath_center).astype(int)

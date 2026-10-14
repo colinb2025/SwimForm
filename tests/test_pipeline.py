@@ -7,18 +7,20 @@ synthetic swimmers whose faults are known. The bar these tests hold:
   - when the footage cannot show it, the issue is reported as not assessed.
 """
 import json
+from pathlib import Path
 
 import numpy as np
 import pytest
 
 from swimform import rules as R
 from swimform.analyze import MissingViewError, WorkbookMismatch, _check_registry, analyze
+from swimform import metrics as M
 from swimform.metrics import REGISTRY, compute
 from swimform.posedata import PoseDataError, PoseTrack
-from swimform.schema import FLIP_IDX, HEAD_ON, KEYPOINTS, SIDE
+from swimform.schema import FLIP_IDX, HEAD_ON, IDX, KEYPOINTS, SIDE
 from swimform.synthetic import FAULTS, Swimmer, generate
 
-WORKBOOK = "rules/swim_rules.xlsx"
+WORKBOOK = str(Path(__file__).resolve().parents[1] / "rules" / "swim_rules.xlsx")
 
 
 @pytest.fixture(scope="module")
@@ -130,6 +132,7 @@ CONDITIONS = [("clean", "underwater"), ("typical", "underwater"), ("poor", "unde
 def test_clean_swimmer_triggers_nothing(rules, quality, camera, seed):
     report = analyze(session(quality=quality, camera=camera, seed=seed), rules, top_n=20)
     assert triggered(report) == set(), report["priorities"]
+    assert report["errors"] == {}
 
 
 @pytest.mark.parametrize("quality", ["clean", "typical", "poor"])
@@ -178,3 +181,54 @@ def test_report_carries_confidence_and_drills(rules):
     assert m["view"] == SIDE and 0 < m["confidence"] <= 1 and m["usable_cycles"] >= 3
     top = report["priorities"][0]
     assert top["issue_id"] == "dropped_elbow" and top["interventions"]
+
+
+# ------------------------------------------------- real-footage failure modes
+def test_clean_swimmer_is_reported_clear_on_every_issue(rules):
+    report = analyze(session(quality="typical"), rules)
+    assert set(report["issues_clear"]) == set(FAULTS)
+    assert report["issues_not_assessed"] == {}
+
+
+def test_off_centre_camera_does_not_read_as_breathing(rules):
+    tracks = session(quality="typical", seed=3)
+    tr = tracks[HEAD_ON]
+    width = np.nanmedian(np.abs(tr.data[:, IDX["l_shoulder"], 0] - tr.data[:, IDX["r_shoulder"], 0]))
+    tr.data[:, IDX["top_of_head"], 0] += 0.25 * width   # head permanently off the spine line
+    report = analyze(tracks, rules, top_n=20)
+    assert triggered(report) == set(), report["priorities"]
+    assert "late_breath" in report["issues_clear"]
+
+
+def test_breathing_every_other_cycle_is_still_assessed(rules):
+    sw = Swimmer({"late_breath": 1.0}, breath_every=2)
+    report = analyze({v: generate(v, sw, quality="typical", seed=5) for v in (SIDE, HEAD_ON)}, rules, top_n=20)
+    assert "late_breath" in triggered(report), report["issues_not_assessed"]
+    clean = Swimmer(breath_every=2)
+    report = analyze({v: generate(v, clean, quality="typical", seed=5) for v in (SIDE, HEAD_ON)}, rules, top_n=20)
+    assert triggered(report) == set() and "late_breath" in report["issues_clear"]
+
+
+def test_no_breaths_in_clip_is_not_assessed_not_a_fault(rules):
+    sw = Swimmer(breath_every=0)   # never breathes during the clip
+    report = analyze({v: generate(v, sw, quality="typical", seed=2) for v in (SIDE, HEAD_ON)}, rules, top_n=20)
+    assert triggered(report) == set(), report["priorities"]
+    assert "no breaths seen" in report["issues_not_assessed"]["late_breath"]
+    assert "no breaths seen" in report["issues_not_assessed"]["head_lift_on_breath"]
+
+
+def test_a_crashing_metric_is_isolated(rules, monkeypatch):
+    def boom(ctx, cyc):
+        raise ZeroDivisionError("bad clip")
+    monkeypatch.setitem(M.REGISTRY, "kick_knee_angle", (SIDE, boom))
+    report = analyze(session({"dropped_elbow": 1.0}, seed=5), rules, top_n=20)
+    assert "could not be computed" in report["metrics_not_assessed"]["kick_knee_angle"]
+    assert "excessive_knee_bend" in report["issues_not_assessed"]
+    assert "dropped_elbow" in triggered(report)          # everything else still ran
+    assert "kick_knee_angle" in report["errors"]
+
+
+def test_default_workbook_works_from_any_directory(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    report = analyze(session(seed=1))
+    assert triggered(report) == set()

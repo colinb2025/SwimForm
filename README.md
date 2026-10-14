@@ -23,6 +23,10 @@ the view the workbook assigns it. If a clip shows too few readable stroke cycles
 that metric — and any fault depending on it — comes back **not assessed**, with the reason,
 rather than guessed. A confident score from bad keypoints is worse than no score.
 
+The report splits every workbook issue three ways: **flagged** (`priorities`, `other_issues`),
+**clear** (checked and fine), and **not assessed** (with the reason). A metric that fails on
+an odd clip is reported as not assessed under `errors`; the rest of the analysis still runs.
+
 Two layers, and only the first needs training:
 
 - **Pose** (`swimform.pose`) turns video into per-frame landmarks. This is a trained
@@ -138,6 +142,10 @@ large, and nothing in it is personal data.
 - **`pose.py`, `labeling/prep.py` and `labeling/convert.py` are still COCO-17** in this
   branch. `PoseTrack` loads COCO files by name (face points dropped, spine points missing),
   so nothing breaks; the labeling tools should import `schema.KEYPOINTS` and `FLIP_IDX`.
+
+- **`max` aggregates are the most fragile on real footage.** `breath_head_lift` and
+  `kick_width` take the worst cycle, so one misread cycle can flag a fault. They pass on
+  synthetic noise; consider `p75` once real clips are in.
 
 ## Open decisions
 

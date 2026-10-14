@@ -11,6 +11,8 @@ a fault the footage could not show.
   python -m swimform.analyze --synthetic dropped_elbow=1 late_breath=0.7
 """
 import argparse, json
+from pathlib import Path
+
 import numpy as np
 
 from . import metrics as M
@@ -18,7 +20,8 @@ from . import rules as R
 from .posedata import PoseTrack
 from .schema import HEAD_ON, SIDE, VIEWS
 
-DEFAULT_RULES = "rules/swim_rules.xlsx"
+# Resolved from the package location so the default works from any directory.
+DEFAULT_RULES = str(Path(__file__).resolve().parents[2] / "rules" / "swim_rules.xlsx")
 MIN_CYCLES = 3          # fewer readable cycles than this and a metric is not assessed
 MIN_USABLE_FRAC = 0.5   # ...or if under half the detected cycles were readable
 
@@ -58,8 +61,8 @@ def analyze(tracks, rules=DEFAULT_RULES, require=VIEWS, top_n=3,
     rules:  path to the workbook, or an already-loaded rules dict
     require: views that must be present; analysis refuses to run without them
     """
-    if isinstance(rules, str):
-        rules, errors = R.load(rules)
+    if isinstance(rules, (str, Path)):
+        rules, errors = R.load(str(rules))
         if errors:
             raise WorkbookMismatch("workbook invalid: " + "; ".join(errors))
     _check_registry(rules)
@@ -79,11 +82,19 @@ def analyze(tracks, rules=DEFAULT_RULES, require=VIEWS, top_n=3,
             not_assessed[mid] = f"no {view} video"
             continue
         res = per_view[view]
+        if mid in res["errors"]:
+            not_assessed[mid] = f"could not be computed ({res['errors'][mid]})"
+            continue
         vals = res["values"].get(mid, [])
-        usable = [v for v in vals if v is not None]
-        n = len(res["cycles"])
-        if n == 0:
+        applicable = [v for v in vals if v != M.SKIP]
+        usable = [v for v in applicable if v is not None]
+        n = len(applicable)
+        if not res["cycles"]:
             not_assessed[mid] = f"no stroke cycles detected in the {view} video"
+            continue
+        if n == 0:
+            not_assessed[mid] = f"no breaths seen in the {view} video" if m.get("phase") == "breath" \
+                else f"did not occur in the {view} video"
             continue
         if len(usable) < min_cycles or len(usable) / n < min_usable_frac:
             not_assessed[mid] = f"only {len(usable)} of {n} stroke cycles readable in the {view} video"
@@ -111,6 +122,10 @@ def analyze(tracks, rules=DEFAULT_RULES, require=VIEWS, top_n=3,
                               if mid not in measurements})
             issues_not_assessed[iid] = "; ".join(reasons)
 
+    flagged = {f["issue_id"] for f in result["priorities"]} | set(result["other_issues"])
+    issues_clear = [i["issue_id"] for i in rules["issues"]
+                    if i["issue_id"] not in flagged and i["issue_id"] not in issues_not_assessed]
+
     return {
         "views": {v: {"frames": tracks[v].n, "fps": tracks[v].fps, "cycles": len(per_view[v]["cycles"]),
                       "detection_rates": tracks[v].detection_rates()} for v in tracks},
@@ -119,6 +134,8 @@ def analyze(tracks, rules=DEFAULT_RULES, require=VIEWS, top_n=3,
         "priorities": result["priorities"],
         "other_issues": result["other_issues"],
         "issues_not_assessed": issues_not_assessed,
+        "issues_clear": issues_clear,  # checked, and not a problem
+        "errors": {mid: msg for v in per_view.values() for mid, msg in v["errors"].items()},
     }
 
 

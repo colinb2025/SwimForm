@@ -23,7 +23,14 @@ from .schema import HEAD_ON, SIDE
 MIN_CYCLE_S, MAX_CYCLE_S = 0.6, 2.5
 MIN_PULL_VISIBILITY = 0.7  # share of frames the near hand must be trusted to measure the pull
 
-REGISTRY = {}  # metric_id -> (view, fn(ctx, cycle) -> float | None)
+REGISTRY = {}  # metric_id -> (view, fn(ctx, cycle) -> float | None | SKIP)
+
+# A metric returns SKIP for a cycle where it does not apply (no breath taken in that
+# cycle), as opposed to None for a cycle it could not read. Skipped cycles do not
+# count against readability: breathing every other cycle is technique, not bad footage.
+SKIP = "skip"
+
+BREATH_MIN_TURN = 0.15  # sideways head shift, as a share of shoulder width, that counts as a breath
 
 
 def metric(metric_id, view):
@@ -367,7 +374,12 @@ def recovery_elbow_height(ctx, cyc):
 
 @metric("head_lift_angle", SIDE)
 def head_lift_angle(ctx, cyc):
-    """Neck->top-of-head line vs waist->neck spine line, degrees; positive = head raised."""
+    """Neck->top-of-head line vs waist->neck spine line, degrees; positive = head raised.
+
+    The workbook asks for non-breathing strokes, but breaths are invisible from the
+    side without face points, so this takes the median over the whole cycle. With one
+    breath per cycle the breath frames are a minority and the median ignores them.
+    """
     a, b = cyc
     tr = ctx.tr
     head = tr.p("top_of_head")[a:b] - tr.p("spine_at_neck")[a:b]
@@ -484,14 +496,21 @@ def entry_crossover(ctx, cyc):
 
 
 def _breaths(ctx):
-    """Breath events: (peak frame, side 'r'/'l') from sideways head displacement."""
+    """Breath events (peak frame, side 'r'/'l', first frame, last frame), from the
+    head turning sideways off the spine.
+
+    The resting offset is subtracted first, so a camera slightly off the swimmer's
+    centreline does not read as permanent breathing, and a turn must clear an absolute
+    floor, so a clip with no breaths does not promote jitter into breaths.
+    """
     if hasattr(ctx, "_breath_cache"):
         return ctx._breath_cache
     tr = ctx.tr
     lat = tr.p("top_of_head")[:, 0] - tr.p("spine_at_neck")[:, 0]
     events = []
-    if np.isnan(lat).mean() < 0.5:
-        thr = 0.4 * np.nanmax(np.abs(lat))
+    if np.isnan(lat).mean() < 0.5 and ctx.width > 0:
+        lat = lat - _nanmed(lat)
+        thr = max(0.4 * np.nanmax(np.abs(lat)), BREATH_MIN_TURN * ctx.width)
         on = np.abs(np.nan_to_num(lat)) > thr
         i = 0
         while i < len(on):
@@ -500,7 +519,9 @@ def _breaths(ctx):
                 while j + 1 < len(on) and on[j + 1]:
                     j += 1
                 k = i + int(np.nanargmax(np.abs(lat[i:j + 1])))
-                # Head-on, the swimmer's right appears on image-left.
+                # Head-on, the swimmer's right appears on image-left. (A mirrored
+                # front-camera recording would swap this; the timing logic still works,
+                # since it follows whichever wrist is on the breathing side.)
                 events.append((k, "r" if lat[k] < 0 else "l", i, j))
                 i = j + 1
             else:
@@ -509,14 +530,25 @@ def _breaths(ctx):
     return events
 
 
+def _breath_in(ctx, cyc):
+    return [e for e in _breaths(ctx) if cyc[0] <= e[0] < cyc[1]]
+
+
+def _head_tracked(ctx, cyc):
+    a, b = cyc
+    return ctx.tr.ok("top_of_head", "spine_at_neck")[a:b].mean() >= 0.5
+
+
 @metric("breath_head_lift", HEAD_ON)
 def breath_head_lift(ctx, cyc):
     """Rise of the head during the breath vs non-breathing frames / head height."""
     tr = ctx.tr
-    rel = tr.p("top_of_head")[:, 1] - tr.p("spine_at_neck")[:, 1]
-    events = [e for e in _breaths(ctx) if cyc[0] <= e[0] < cyc[1]]
-    if not events or np.isnan(rel).mean() > 0.5:
+    if not _head_tracked(ctx, cyc):
         return None
+    events = _breath_in(ctx, cyc)
+    if not events:
+        return SKIP
+    rel = tr.p("top_of_head")[:, 1] - tr.p("spine_at_neck")[:, 1]
     breathing = np.zeros(tr.n, bool)
     for _, _, i, j in _breaths(ctx):
         breathing[i:j + 1] = True
@@ -525,16 +557,21 @@ def breath_head_lift(ctx, cyc):
     if math.isnan(base) or head_h == 0:
         return None
     k, _, i, j = events[0]
-    return _val(max(0.0, base - np.nanmin(rel[i:j + 1])) / head_h)
+    during = rel[i:j + 1]
+    if np.isnan(during).all():
+        return None
+    return _val(max(0.0, base - np.nanmin(during)) / head_h)
 
 
 @metric("breath_timing", HEAD_ON)
 def breath_timing(ctx, cyc):
     """(peak head turn - same-side hand exit) / cycle length; positive = breath late."""
     tr = ctx.tr
-    events = [e for e in _breaths(ctx) if cyc[0] <= e[0] < cyc[1]]
-    if not events:
+    if not _head_tracked(ctx, cyc):
         return None
+    events = _breath_in(ctx, cyc)
+    if not events:
+        return SKIP
     k, side, _, _ = events[0]
     above = tr.p(f"{side}_wrist")[:, 1] < tr.p(f"{side}_shoulder")[:, 1]
     known = tr.ok(f"{side}_wrist", f"{side}_shoulder")
@@ -563,16 +600,25 @@ def compute(tr: PoseTrack, metric_ids=None):
     """
     Per-cycle values for every registered metric belonging to this track's view.
 
-    -> {"view", "cycles": [(a, b), ...], "values": {metric_id: [v | None per cycle]}}
+    -> {"view", "cycles": [(a, b), ...],
+        "values": {metric_id: [value | None (unreadable) | SKIP (not applicable) per cycle]},
+        "errors": {metric_id: message} for any metric that raised}
     """
     ctx = Context(tr)
-    values = {}
+    values, errors = {}, {}
     for mid, (view, fn) in REGISTRY.items():
         if view != tr.view or (metric_ids is not None and mid not in metric_ids):
             continue
-        values[mid] = [fn(ctx, c) for c in ctx.cycles]
+        out = []
+        for c in ctx.cycles:
+            try:
+                out.append(fn(ctx, c))
+            except Exception as e:  # one odd clip must not take down the other metrics
+                errors.setdefault(mid, f"{type(e).__name__}: {e}")
+                out.append(None)
+        values[mid] = out
     return {"view": tr.view, "fps": tr.fps,
-            "cycles": [[int(a), int(b)] for a, b in ctx.cycles], "values": values}
+            "cycles": [[int(a), int(b)] for a, b in ctx.cycles], "values": values, "errors": errors}
 
 
 def main():
@@ -586,9 +632,11 @@ def main():
         print("=" * 70)
         print(p, f"view={tr.view}  frames={tr.n}  cycles={len(r['cycles'])}")
         for mid, vals in r["values"].items():
-            got = [v for v in vals if v is not None]
+            got = [v for v in vals if v is not None and v != SKIP]
             med = round(float(np.median(got)), 2) if got else None
             print(f"  {mid:24s} median={med}  usable={len(got)}/{len(vals)}")
+        for mid, err in r["errors"].items():
+            print(f"  ! {mid} failed: {err}")
 
 
 if __name__ == "__main__":
