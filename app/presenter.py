@@ -9,6 +9,8 @@ Every one of the workbook's issues ends up in exactly one place:
 """
 from swimform.schema import BOTH, HEAD_ON, SIDE
 
+from . import snapshots
+
 STATUS = {
     "flagged":   "Needs work",
     "estimated": "May need work",
@@ -73,9 +75,30 @@ def build(record, rules):
          for iid, st in status.items() if iid in issues],
         key=lambda l: (ORDER.index(l["status"]), l["name"]))
 
+    def caption(iid, evidence):
+        """The measurement behind a finding, and the threshold the workbook flags at."""
+        for r in rules["issue_rules"]:
+            if r["issue_id"] != iid or (r.get("evidence") or "direct") != evidence:
+                continue
+            m = rep["measurements"].get(r["metric_id"])
+            meta = metrics.get(r["metric_id"])
+            if not m or not meta:
+                continue
+            unit = meta.get("unit")
+            op = {"<": "below", "<=": "at or below", ">": "above", ">=": "at or above"}.get(r["operator"])
+            limit = f" We flag {op} {_fmt(r['value'], unit)}." if op else ""
+            return f"{_sentence(meta['name'].replace('Proxy: ', ''))}: {_fmt(m['value'], unit)}.{limit}"
+        return None
+
+    strokes = rep.get("average_strokes") or {}
     priorities = []
     for p in rep["priorities"]:
+        snap = snapshots.svg(strokes, p["issue_id"]) if strokes else None
         priorities.append({
+            "snapshot": snap[0] if snap else None,
+            "snapshot_moment": snap[1] if snap else None,
+            "snapshot_view": snapshots.SPECS[p["issue_id"]][0] if snap else None,
+            "caption": caption(p["issue_id"], p["evidence"]),
             "name": p["name"], "estimated": p["evidence"] == "proxy",
             "observed": p["what_we_observed"], "why": p["why_it_matters"],
             "drills": [d for d in p["interventions"] if d["type"] == "drill"],

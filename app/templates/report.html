@@ -42,8 +42,21 @@
       <h3>{{ p.name }}</h3>
       {% if p.estimated %}<p class="est-tag">Estimated from what the cameras could see</p>{% endif %}
     </header>
-    <p class="observed">{{ p.observed }}</p>
-    <p class="why">{{ p.why }}</p>
+    <div class="finding-body">
+      <div class="finding-text">
+        <p class="observed">{{ p.observed }}</p>
+        <p class="why">{{ p.why }}</p>
+      </div>
+      {% if p.snapshot %}
+      <figure class="snapshot">
+        {{ p.snapshot|safe }}
+        <figcaption>Your average stroke {{ p.snapshot_moment }}, {{ "side view" if p.snapshot_view == "side" else "head-on" }}.
+          {% if p.caption %}<span class="snap-number">{{ p.caption }}</span>{% endif %}</figcaption>
+      </figure>
+      {% elif p.caption %}
+      <p class="snap-number">{{ p.caption }}</p>
+      {% endif %}
+    </div>
     {% for heading, items in [("In the pool", p.drills), ("Think about", p.cues), ("On land", p.exercises)] if items %}
     <h4>{{ heading }}</h4>
     <ul class="drills">

@@ -145,3 +145,56 @@ def test_swimmer_mostly_missing_is_flagged():
     tr.data[: int(tr.n * 0.8), :, :2] = np.nan
     res = check_clip(tr, SIDE)
     assert not res["ok"] and "find the swimmer" in res["problems"][0]
+
+
+# --------------------------------------------------------- snapshots & pages
+from swimform.analyze import analyze as _analyze
+from swimform.synthetic import FAULTS
+
+
+@pytest.mark.parametrize("fault", FAULTS)
+def test_every_fault_gets_a_posture_snapshot(fault):
+    from app import snapshots
+    tracks = {SIDE: generate(SIDE, Swimmer({fault: 1.0}), seed=3),
+              HEAD_ON: generate(HEAD_ON, Swimmer({fault: 1.0}, cycle_s=1.52), seed=4, t0=3.7)}
+    rep = _analyze(tracks)
+    out = snapshots.svg(rep["average_strokes"], fault)
+    assert out is not None, fault
+    markup, moment = out
+    assert markup.startswith("<svg") and "hot" in markup and moment
+
+
+def test_findings_carry_snapshot_and_measured_caption(client):
+    from app import presenter
+    v = view_for(client, upload(client, side=("a.mp4", b"7"), head_on=("b.mov", b"8")))
+    for p in v["priorities"]:
+        assert p["caption"] and "We flag" in p["caption"]
+    assert any(p["snapshot"] for p in v["priorities"]) or not v["priorities"]
+
+
+def test_snapshot_is_skipped_when_joints_were_not_seen():
+    from app import snapshots
+    blank = [[None] * 15 for _ in range(100)]
+    assert snapshots.svg({SIDE: blank, HEAD_ON: blank}, "dropped_elbow") is None
+
+
+def test_guide_lists_what_each_clip_checks(client):
+    r = client.get("/guide")
+    assert r.status_code == 200
+    t = text(r.text)
+    assert "How to film your clips" in t and "Needs an underwater clip" in t
+    assert "Dropped elbow" in t and "Crossover entry" in t
+
+
+def test_fonts_are_self_hosted(client):
+    page = client.get("/").text
+    assert "googleapis" not in page and "/static/fonts/fonts.css" in page
+    assert client.get("/static/fonts/fonts.css").status_code == 200
+    assert client.get("/static/fonts/barlow-latin-400-normal.woff2").status_code == 200
+
+
+def test_pages_load_their_scripts_and_work_without_them(client):
+    page = client.get("/").text
+    assert "/static/upload.js" in page and 'action="/analyses"' in page   # plain form post fallback
+    rep = client.get(upload(client).headers["location"]).text
+    assert "/static/report.js" in rep and "data-report-id" in rep

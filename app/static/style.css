@@ -219,6 +219,26 @@ section.intro { margin-top: 0; }
 }
 .finding + .finding { margin-top: 18px; }
 .finding-est { border-left-color: var(--rope-yellow); }
+.finding-body { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px 24px; align-items: start; margin-top: 4px; }
+.finding-body:has(> .snap-number:only-of-type), .finding-body:not(:has(.snapshot)) { grid-template-columns: 1fr; }
+.snapshot { margin: 12px 0 0; }
+.snap { width: 100%; height: auto; display: block; }
+.snap-bg { fill: var(--water); }
+.snap-bone { stroke: var(--ink); stroke-width: 3.5; stroke-linecap: round; opacity: 0.55; }
+.snap-bone.far { opacity: 0.25; }
+.snap-bone.hot { stroke: var(--rope-red); stroke-width: 5; opacity: 1; }
+.finding-est .snap-bone.hot { stroke: #B88400; }
+.snap-joint { fill: var(--ink); opacity: 0.7; }
+.snap-joint.hot { fill: var(--rope-red); opacity: 1; }
+.finding-est .snap-joint.hot { fill: #B88400; }
+.snap-guide { stroke: var(--ink); stroke-width: 1.5; stroke-dasharray: 4 5; opacity: 0.45; }
+.snap-arc { fill: none; stroke: var(--rope-red); stroke-width: 2.5; }
+.snap-measure { stroke: var(--rope-red); stroke-width: 3; stroke-linecap: round; }
+.finding-est .snap-measure { stroke: #B88400; }
+.snap-target { stroke: var(--good); stroke-width: 2; stroke-dasharray: 6 4; }
+.finding-est .snap-arc { stroke: #B88400; }
+.snapshot figcaption { font-size: 0.9rem; color: var(--ink-soft); margin-top: 6px; }
+.snap-number { display: block; color: var(--ink); font-weight: 600; margin-top: 4px; }
 .est-tag { margin: 6px 0 0; font-size: 0.95rem; font-weight: 600; color: #8A6300; }
 .observed { font-size: 1.15rem; margin: 12px 0 4px; max-width: 62ch; }
 .why { color: var(--ink-soft); margin: 0; max-width: 62ch; }
@@ -302,6 +322,7 @@ button.go-quiet { font: 600 1.25rem/1 var(--display); }
   .upload { grid-template-columns: 1fr; }
   .lane { grid-template-columns: 1fr; gap: 2px; padding: 14px 16px 18px; }
   .finding { padding: 18px 16px 14px; }
+  .finding-body { grid-template-columns: 1fr; }
   .mistakes { grid-template-columns: 1fr; gap: 2px; }
   .mistakes dd { margin-bottom: 10px; }
 }

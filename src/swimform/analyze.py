@@ -166,7 +166,21 @@ def analyze(tracks, rules=DEFAULT_RULES, require=VIEWS, top_n=3,
     other_issues = [{"issue_id": iid, "evidence": result["assessed_with"].get(iid, "direct")}
                     for iid in result["other_issues"]]
 
+    # Each view's average stroke cycle, for drawing posture snapshots in the report:
+    # {view: [[ [x, y] | null per keypoint ] per phase bin]}, pixels relative to the
+    # shoulder midpoint, side-view x pointing in the direction of travel.
+    average_strokes = {}
+    for v, tr in tracks.items():
+        try:
+            mc, _, _ = S3.mean_cycle(tr)
+        except Exception:
+            mc = None
+        if mc is not None:
+            average_strokes[v] = [[None if np.isnan(pt).any() else [round(float(pt[0]), 1), round(float(pt[1]), 1)]
+                                   for pt in frame] for frame in mc]
+
     return {
+        "average_strokes": average_strokes,
         "views": {v: {"frames": tracks[v].n, "fps": tracks[v].fps, "cycles": len(per_view[v]["cycles"]),
                       "detection_rates": tracks[v].detection_rates()} for v in tracks},
         "measurements": detail,
