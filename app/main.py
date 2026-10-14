@@ -62,6 +62,12 @@ def report_page(request: Request, aid: str):
     return templates.TemplateResponse(request, "report.html", {"r": presenter.build(record, rules())})
 
 
+@app.get("/guide", response_class=HTMLResponse)
+def guide_page(request: Request):
+    groups = [g for g in presenter.coverage(rules()) if g["issues"]]
+    return templates.TemplateResponse(request, "guide.html", {"coverage": groups})
+
+
 @app.get("/healthz")
 def healthz():
     return {"ok": True}

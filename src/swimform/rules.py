@@ -176,6 +176,8 @@ def evaluate(R, measurements, per_cycle=None, top_n=3):
         observed = i["proxy_observed"] if f["evidence"] == "proxy" else i["what_we_observed"]
         f.update(what_we_observed=observed, why_it_matters=i["why_it_matters"],
                  interventions=[{"id": v["intervention_id"], "type": v["type"], "name": v["name"],
+                                 "description": v.get("description") or "",
+                                 "difficulty": v.get("difficulty") or "",
                                  "equipment": v.get("equipment") or ""} for v in by_issue[f["issue_id"]]])
     return {"scores": scores, "priorities": found[:top_n], "other_issues": [f["issue_id"] for f in found[top_n:]],
             "assessed_with": assessed_with}

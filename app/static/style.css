@@ -107,6 +107,27 @@ section.intro { margin-top: 0; }
 .file-name { font-size: 0.95rem; color: var(--ink-soft); overflow-wrap: anywhere; }
 .slot.chosen .file-name { color: var(--ink); font-weight: 500; }
 
+.preview { margin: 0 0 14px; }
+.preview canvas { display: block; width: 100%; height: auto; border-radius: var(--radius-s); background: var(--water); }
+.preview-meta { margin: 6px 0 0; font-size: 0.9rem; color: var(--ink-soft); }
+.warn {
+  margin: 0 0 14px; padding: 10px 14px;
+  border-left: 5px solid var(--rope-yellow); background: #FFF6DB;
+}
+.warn p { margin: 0; }
+.warn p + p { margin-top: 6px; }
+
+.progress { flex-basis: 100%; }
+.progress .bar { height: 8px; border-radius: 4px; background: var(--water); overflow: hidden; }
+.progress .bar span { display: block; height: 100%; width: 0; background: var(--ink); transition: width 0.2s; }
+.progress.working .bar span {
+  background: repeating-linear-gradient(90deg, var(--ink) 0 14px, var(--paper) 14px 22px);
+  background-size: 44px 100%;
+  animation: rope 1s linear infinite;
+}
+@keyframes rope { to { background-position: 44px 0; } }
+.progress-label { margin: 8px 0 0; color: var(--ink-soft); }
+
 .problem {
   margin: 0 0 16px; padding: 12px 14px;
   border-left: 5px solid var(--rope-red);
@@ -128,6 +149,23 @@ section.intro { margin-top: 0; }
 .go-quiet { background: transparent; color: var(--ink); border: 2px solid var(--ink); }
 .go-quiet:hover { background: var(--water); }
 .hint { margin: 0; color: var(--ink-soft); font-size: 0.95rem; }
+
+/* ---------- guide ---------- */
+.guide-block h2 { display: flex; align-items: center; gap: 10px; }
+.guide-head .swatch { background: var(--head); }
+.guide-list { margin: 0; padding-left: 20px; max-width: 66ch; }
+.guide-list li + li { margin-top: 8px; }
+.mistakes { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 10px 24px; max-width: 72ch; }
+.mistakes dt { font-weight: 600; }
+.mistakes dd { margin: 0; color: var(--ink-soft); }
+.checks-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.checks { background: var(--paper); border: 1px solid var(--line); border-top: 6px solid var(--side); border-radius: var(--radius-s); padding: 16px 18px; }
+.checks-head_on { border-top-color: var(--head); }
+.checks-both { border-top-color: var(--ink); }
+.checks-underwater { border-top-color: var(--water-deep); background: #F0F8FA; }
+.checks p { margin: 6px 0 10px; color: var(--ink-soft); font-size: 0.95rem; }
+.checks ul { margin: 0; padding-left: 18px; }
+.checks li + li { margin-top: 4px; }
 
 /* ---------- report: the lane chart is the memorable thing ---------- */
 .demo {
@@ -184,10 +222,23 @@ section.intro { margin-top: 0; }
 .est-tag { margin: 6px 0 0; font-size: 0.95rem; font-weight: 600; color: #8A6300; }
 .observed { font-size: 1.15rem; margin: 12px 0 4px; max-width: 62ch; }
 .why { color: var(--ink-soft); margin: 0; max-width: 62ch; }
-.drills { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
-.drills li { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.drills { list-style: none; padding: 0; margin: 0; display: grid; gap: 2px; }
+.drill summary {
+  display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline;
+  padding: 6px 0; cursor: pointer; list-style: none;
+}
+.drill summary::-webkit-details-marker { display: none; }
+.drill summary::before {
+  content: ""; flex: none; align-self: center;
+  width: 0; height: 0; border-style: solid; border-width: 5px 0 5px 7px;
+  border-color: transparent transparent transparent var(--ink-soft);
+  transition: transform 0.15s;
+}
+.drill[open] summary::before { transform: rotate(90deg); }
+.drill p { margin: 0 0 10px 19px; color: var(--ink-soft); max-width: 60ch; }
 .drill-name { font-weight: 600; }
 .kit { color: var(--ink-soft); font-size: 0.92rem; }
+.level { color: var(--ink); font-weight: 500; }
 
 .also ul, .unchecked ul { padding-left: 20px; margin: 0; max-width: 66ch; }
 .also li + li, .unchecked li + li { margin-top: 10px; }
@@ -216,6 +267,30 @@ td:nth-child(2), td:nth-child(3), td:nth-child(5) { white-space: nowrap; }
 .row-est { background: #FFFBEF; }
 .again { margin-top: 40px; }
 
+.recent { margin: 28px 0 0; }
+.recent h2 { font-size: 1.3rem; margin-bottom: 8px; }
+.recent-list { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px 20px; color: var(--ink-soft); }
+.again { display: flex; flex-wrap: wrap; gap: 12px; }
+button.go-quiet { font: 600 1.25rem/1 var(--display); }
+
+@media print {
+  @page { margin: 14mm; }
+  body { background: #fff; font-size: 11pt; }
+  .masthead { border-bottom-width: 2px; padding: 0 0 8px; }
+  .page { max-width: none; padding: 12px 0 0; }
+  .again, .demo + .demo, .print-report { display: none !important; }
+  section { margin-top: 22px; break-inside: avoid-page; }
+  .finding { break-inside: avoid; border: 1px solid var(--line); border-left-width: 6px; }
+  .lane-list, .rope, .rope-chip, .finding, .good-list li, .est-inline, .demo, .row-est {
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .lane { padding: 8px 14px 12px; }
+  .lane-name { font-size: 1.05rem; }
+  .drill summary::before { display: none; }
+  .drill p { margin-left: 0; }
+  a { color: var(--ink); text-decoration: none; }
+}
+
 @media (max-width: 680px) {
   .page { padding: 24px 16px 56px; }
   table, tbody, tr, th, td { display: block; }
@@ -227,6 +302,8 @@ td:nth-child(2), td:nth-child(3), td:nth-child(5) { white-space: nowrap; }
   .upload { grid-template-columns: 1fr; }
   .lane { grid-template-columns: 1fr; gap: 2px; padding: 14px 16px 18px; }
   .finding { padding: 18px 16px 14px; }
+  .mistakes { grid-template-columns: 1fr; gap: 2px; }
+  .mistakes dd { margin-bottom: 10px; }
 }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }

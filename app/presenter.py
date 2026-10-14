@@ -121,3 +121,50 @@ def build(record, rules):
         "fused": bool(s3.get("used")), "fused_agreement": s3.get("view_agreement"),
         "synthetic": record.get("pose_provider") == "synthetic",
     }
+
+
+def coverage(rules):
+    """Which clip lets us check which issue, from the workbook's direct rules, for the guide."""
+    metrics = {m["metric_id"]: m for m in rules["metrics"]}
+    groups = {}
+    for r in rules["issue_rules"]:
+        key = (r["issue_id"], r.get("rule_group") or 1)
+        groups.setdefault(key, {"rows": [], "proxy": False})
+        groups[key]["rows"].append(r["metric_id"])
+        groups[key]["proxy"] |= r.get("evidence") == "proxy"
+    names = {i["issue_id"]: i["name"] for i in rules["issues"]}
+    out = {"side": [], "head_on": [], "both": [], "underwater": []}
+    for iid, name in names.items():
+        direct = [g["rows"] for (i, _), g in groups.items() if i == iid and not g["proxy"]]
+        proxy = [g["rows"] for (i, _), g in groups.items() if i == iid and g["proxy"]]
+
+        def above(rows):
+            return all(metrics[m]["water"] != "below" for m in rows if m in metrics)
+
+        def views(rows):
+            return {metrics[m]["view"] for m in rows if m in metrics}
+
+        def where(rows):
+            v = views(rows)
+            if BOTH in v or v == {SIDE, HEAD_ON}:
+                return "both"
+            return next(iter(v)) if len(v) == 1 else None
+
+        placed = False
+        for key in ("side", "head_on", "both"):
+            if any(above(rows) and where(rows) == key for rows in direct):
+                out[key].append(name)
+                placed = True
+                break
+        if not placed:
+            estimable = any(above(rows) for rows in proxy)
+            out["underwater"].append(name + (" (estimated from above the water)" if estimable else ""))
+    return [
+        {"key": "side", "title": "Side view", "note": "Visible from above the water.", "issues": sorted(out["side"])},
+        {"key": "head_on", "title": "Head-on view", "note": "Visible from above the water.", "issues": sorted(out["head_on"])},
+        {"key": "both", "title": "Both clips together", "note": "Combined into a 3D picture of your typical stroke.",
+         "issues": sorted(out["both"])},
+        {"key": "underwater", "title": "Needs an underwater clip",
+         "note": "These happen under the surface. Without an underwater clip, some can be estimated; the rest we'll tell you we couldn't check.",
+         "issues": sorted(out["underwater"])},
+    ]
