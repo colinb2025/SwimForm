@@ -110,6 +110,14 @@ thresholds of its own.
 | `Interventions` | drills, exercises and cues |
 | `Issue_Interventions` | which interventions address which fault, ranked |
 
+**Direct vs proxy evidence.** Each `Issue_Rules` row has `evidence = direct` (measures the
+fault itself) or `proxy` (an indirect clue, for footage that cannot show the fault, such as
+where the hand breaks the surface when a deck camera cannot see the pull). Direct rules
+decide whenever they can be measured, even over a disagreeing proxy. A finding resting on a
+proxy is marked as such in the report, ranks lower, and uses the issue's `proxy_observed`
+wording ("may be … an underwater side view would confirm it"). Proxy metrics are never
+scored.
+
 Scoring: 100 inside `[ideal_min, ideal_max]`, falling linearly to 0 at the fault bound.
 Ranking: `priority_weight × (1 + how far past the threshold)`, so a mild fault on a
 critical metric can outrank a severe one on a minor metric. The top 2–3 reach the athlete.
@@ -149,9 +157,14 @@ large, and nothing in it is personal data.
 
 ## Findings from building the metrics
 
-- **Deck-level coverage.** With visibility fading by depth, a deck camera can assess 10 of
-  14 faults. The deep-catch ones (dropped elbow, straight-arm pull, short pull) and
-  over-gliding need underwater footage. Real coverage depends on how well the fine-tuned
+- **Deck-level coverage.** With visibility fading by depth, a deck camera can assess 12 of
+  14 faults: 10 directly, plus short pull and over-gliding by proxy. Dropped elbow and
+  straight-arm pull need underwater footage.
+- **Proxy thresholds are calibrated on synthetic swimmers only.** Two known confounds: the
+  hand-reappearance proxy for short pull reads over-gliders as somewhat short (threshold set
+  to separate them), and spine angle rises with a lifted head as well as sinking hips. A
+  "hand hidden time" proxy for over-gliding was tried and dropped: gliding hands sit
+  shallow enough to stay visible, so it pointed the wrong way. Real coverage depends on how well the fine-tuned
   model places `occluded` underwater joints; re-measure once it runs on real clips.
 - **`recovery_elbow_angle` is now measured in 3D.** A side camera flattens the outward swing
   of a high-elbow recovery, so its 2D angle read a textbook recovery as ~10° (score 11/100).

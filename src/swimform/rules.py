@@ -15,7 +15,11 @@ ENUMS = {
     "operator": {"<", "<=", ">", ">=", "between", "outside"},
     "type": {"drill", "exercise", "cue"},
     "status": {"draft", "verified", "disabled"},
+    "evidence": {"direct", "proxy"},
 }
+
+# A finding resting only on proxy evidence ranks below a direct one of equal severity.
+PROXY_PRIORITY_FACTOR = 0.6
 
 def read_sheet(wb, name):
     ws = wb[name]
@@ -66,6 +70,8 @@ def validate(R):
             errs.append(f"Metrics/{m['metric_id']}: fault_high must be above ideal_max")
     for r in R["issue_rules"]:
         tag = f"Issue_Rules/{r['issue_id']}"
+        if (r.get("evidence") or "direct") not in ENUMS["evidence"]:
+            errs.append(f"{tag}: bad evidence '{r.get('evidence')}'")
         if r["issue_id"] not in i_ids: errs.append(f"{tag}: unknown issue_id")
         if r["metric_id"] not in m_ids: errs.append(f"{tag}: unknown metric_id '{r['metric_id']}'")
         if r["operator"] not in ENUMS["operator"]: errs.append(f"{tag}: bad operator '{r['operator']}'")
@@ -78,6 +84,10 @@ def validate(R):
         if r["intervention_id"] not in v_ids: errs.append(f"Issue_Interventions: unknown intervention '{r['intervention_id']}'")
     ruled = {r["issue_id"] for r in R["issue_rules"]}
     for i in i_ids - ruled: errs.append(f"Issues/{i}: no rules, can never trigger")
+    proxied = {r["issue_id"] for r in R["issue_rules"] if r.get("evidence") == "proxy"}
+    for i in R["issues"]:
+        if i["issue_id"] in proxied and not i.get("proxy_observed"):
+            errs.append(f"Issues/{i['issue_id']}: has proxy rules but no proxy_observed wording")
     return errs
 
 def score(m, x):
@@ -117,12 +127,26 @@ def evaluate(R, measurements, per_cycle=None, top_n=3):
     for r in R["issue_rules"]:
         groups[r["issue_id"]][r.get("rule_group") or 1].append(r)
 
+    def evidence(rows):
+        return "proxy" if any(r.get("evidence") == "proxy" for r in rows) else "direct"
+
     issues = {i["issue_id"]: i for i in R["issues"]}
-    found = []
+    found, assessed_with = [], {}
     for iid, grp in groups.items():
         if iid not in issues: continue
+        # Direct evidence decides whenever it exists, even if a proxy disagrees. Proxy
+        # rule groups are consulted only when no direct group could be measured.
+        measurable = {g: rows for g, rows in grp.items() if all(r["metric_id"] in measurements for r in rows)}
+        direct = {g: rows for g, rows in measurable.items() if evidence(rows) == "direct"}
+        if direct:
+            use, ev = direct, "direct"
+        elif measurable:
+            use, ev = measurable, "proxy"
+        else:
+            continue
+        assessed_with[iid] = ev
         best = None
-        for rows in grp.values():
+        for rows in use.values():
             ok, sev = True, 0.0
             for r in rows:
                 mid = r["metric_id"]
@@ -138,8 +162,9 @@ def evaluate(R, measurements, per_cycle=None, top_n=3):
             if ok: best = max(best or 0, sev)
         if best is not None:
             w = issues[iid]["priority_weight"]
+            pr = w * (1 + best) * (PROXY_PRIORITY_FACTOR if ev == "proxy" else 1.0)
             found.append({"issue_id": iid, "name": issues[iid]["name"], "priority_weight": w,
-                          "severity": round(best, 3), "priority": round(w * (1 + best), 3)})
+                          "severity": round(best, 3), "priority": round(pr, 3), "evidence": ev})
     found.sort(key=lambda f: f["priority"], reverse=True)
 
     ints = {v["intervention_id"]: v for v in R["interventions"]}
@@ -148,10 +173,12 @@ def evaluate(R, measurements, per_cycle=None, top_n=3):
         if r["intervention_id"] in ints: by_issue[r["issue_id"]].append(ints[r["intervention_id"]])
     for f in found[:top_n]:
         i = issues[f["issue_id"]]
-        f.update(what_we_observed=i["what_we_observed"], why_it_matters=i["why_it_matters"],
+        observed = i["proxy_observed"] if f["evidence"] == "proxy" else i["what_we_observed"]
+        f.update(what_we_observed=observed, why_it_matters=i["why_it_matters"],
                  interventions=[{"id": v["intervention_id"], "type": v["type"], "name": v["name"],
                                  "equipment": v.get("equipment") or ""} for v in by_issue[f["issue_id"]]])
-    return {"scores": scores, "priorities": found[:top_n], "other_issues": [f["issue_id"] for f in found[top_n:]]}
+    return {"scores": scores, "priorities": found[:top_n], "other_issues": [f["issue_id"] for f in found[top_n:]],
+            "assessed_with": assessed_with}
 
 if __name__ == "__main__":
     path = sys.argv[1] if len(sys.argv) > 1 else "swim_rules.xlsx"

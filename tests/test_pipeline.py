@@ -121,9 +121,11 @@ def test_direction_of_travel_does_not_change_measurements():
     right = compute(generate(SIDE, sw, quality="clean", facing="right"))
     left = compute(generate(SIDE, sw, quality="clean", facing="left"))
     for mid in right["values"]:
-        a = np.nanmedian([v for v in right["values"][mid] if v is not None])
-        b = np.nanmedian([v for v in left["values"][mid] if v is not None])
-        assert a == pytest.approx(b, abs=0.5), mid
+        ra = [v for v in right["values"][mid] if v not in (None, M.SKIP)]
+        la = [v for v in left["values"][mid] if v not in (None, M.SKIP)]
+        assert bool(ra) == bool(la), mid
+        if ra:   # deck-only proxies are legitimately empty on this footage
+            assert np.median(ra) == pytest.approx(np.median(la), abs=0.5), mid
 
 
 # --------------------------------------------------------------- end to end
@@ -227,7 +229,8 @@ def test_a_crashing_metric_is_isolated(rules, monkeypatch):
     monkeypatch.setitem(M.REGISTRY, "kick_knee_angle", (SIDE, boom))
     report = analyze(session({"dropped_elbow": 1.0}, seed=5), rules, top_n=20)
     assert "could not be computed" in report["metrics_not_assessed"]["kick_knee_angle"]
-    assert "excessive_knee_bend" in report["issues_not_assessed"]
+    # with the direct measure broken, the issue falls back to its proxy rather than going dark
+    assert report["issues_clear"]["excessive_knee_bend"] == "proxy"
     assert "dropped_elbow" in triggered(report)          # everything else still ran
     assert "kick_knee_angle" in report["errors"]
 
@@ -285,4 +288,47 @@ def test_good_recovery_now_scores_well(rules):
 def test_every_measurement_says_how_it_was_taken(rules):
     report = analyze(session(quality="typical"), rules)
     methods = {m["method"] for m in report["measurements"].values()}
-    assert methods == {"direct (side view)", "direct (head-on view)", "3D stroke fused from side + head-on"}
+    assert methods == {"direct (side view)", "direct (head-on view)", "3D stroke fused from side + head-on",
+                       "proxy (side view)", "proxy (head-on view)"}
+
+
+# --------------------------------------------------------- direct vs proxy evidence
+@pytest.mark.parametrize("fault", ["short_pull", "over_gliding"])
+def test_deck_catches_by_proxy_with_hedged_wording(rules, fault):
+    report = analyze(session({fault: 1.0}, quality="typical", camera="deck", seed=5), rules, top_n=20)
+    hit = next(p for p in report["priorities"] if p["issue_id"] == fault)
+    assert hit["evidence"] == "proxy"
+    assert "may" in hit["what_we_observed"] and "confirm" in hit["what_we_observed"]
+
+
+@pytest.mark.parametrize("fault", ["short_pull", "over_gliding", "high_head_position", "sinking_hips"])
+def test_underwater_footage_uses_direct_evidence(rules, fault):
+    report = analyze(session({fault: 1.0}, quality="typical", seed=5), rules, top_n=20)
+    hit = next(p for p in report["priorities"] if p["issue_id"] == fault)
+    assert hit["evidence"] == "direct" and "may" not in hit["what_we_observed"]
+
+
+def test_direct_evidence_overrides_a_disagreeing_proxy(rules):
+    # pull measured directly and fine; the proxy alone would have flagged it
+    r = R.evaluate(rules, {"pull_exit_position": 0.2, "exit_reappear_position": -1.5}, top_n=20)
+    assert "short_pull" not in {p["issue_id"] for p in r["priorities"]}
+    assert r["assessed_with"]["short_pull"] == "direct"
+
+
+def test_proxy_alone_flags_but_ranks_below_equal_direct_evidence(rules):
+    proxy = R.evaluate(rules, {"exit_reappear_position": -1.5}, top_n=20)["priorities"][0]
+    direct = R.evaluate(rules, {"pull_exit_position": -0.45}, top_n=20)["priorities"][0]
+    assert proxy["issue_id"] == direct["issue_id"] == "short_pull"
+    assert proxy["evidence"] == "proxy" and proxy["priority"] < direct["priority"] * 1.2
+
+
+def test_clear_issues_say_how_they_were_checked(rules):
+    report = analyze(session(quality="typical", camera="deck"), rules)
+    assert report["issues_clear"]["short_pull"] == "proxy"
+    assert report["issues_clear"]["crossover_entry"] == "direct"
+
+
+def test_proxy_rule_without_hedged_wording_fails_validation(rules):
+    bad = {**rules, "issues": [dict(i, proxy_observed=None) if i["issue_id"] == "short_pull" else i
+                              for i in rules["issues"]]}
+    assert any("proxy_observed" in e for e in R.validate(bad))

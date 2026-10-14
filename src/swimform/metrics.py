@@ -627,6 +627,90 @@ def kick_width(ctx, cyc):
     return _val(np.nanmax(sep) / hips)
 
 
+# ================================================================ proxies
+# Indirect measurements, for when the footage cannot show a fault directly (usually a
+# deck camera that cannot see the catch). The workbook marks the rules that use them as
+# `evidence = proxy`: they are consulted only when no direct measurement of that issue
+# was possible, and findings based on them are worded as "may be", never as fact.
+
+@metric("exit_reappear_position", SIDE)
+def exit_reappear_position(ctx, cyc):
+    """Where the hand first breaks the surface, (hand - low back) along the direction of
+    travel / torso; positive = past the hip. Deck footage only: it needs the hand to be
+    hidden underwater during the pull. Reads slightly short of the true exit, because
+    the hand has already started forward when it reappears."""
+    if ctx.anchor != "exit":
+        return None
+    a = cyc[0]
+    s = ctx.s
+    ref = "spine_at_waist" if ctx.tr.ok("spine_at_waist")[a] else f"{s}_hip"
+    x = _nanmed(ctx.fwd(f"{s}_wrist", ref)[a:a + 3])
+    return _val(-x / ctx.torso)
+
+
+@metric("lead_hand_fraction", SIDE)
+def lead_hand_fraction(ctx, cyc):
+    """Share of the cycle the near hand is seen out ahead of the head. One hand only,
+    so it works when the far hand is hidden; a long glide holds it out front longer.
+    Unseen frames count as not out front (a hand ahead near the surface is visible)."""
+    a, b = cyc
+    s = ctx.s
+    if not ctx.tr.ok("top_of_head")[a:b].mean() >= 0.6:
+        return None
+    ahead = ctx.fwd(f"{s}_wrist", "top_of_head")[a:b] > 0
+    return _val(np.nan_to_num(ahead, nan=0).astype(bool).mean())
+
+
+@metric("head_angle_horizontal", SIDE)
+def head_angle_horizontal(ctx, cyc):
+    """Neck->top-of-head line above horizontal, degrees. Needs no waist point, so it
+    survives deck footage, but it cannot tell a lifted head from a tilted body."""
+    a, b = cyc
+    v = ctx.tr.p("top_of_head")[a:b] - ctx.tr.p("spine_at_neck")[a:b]
+    ang = np.degrees(np.arctan2(-v[:, 1], np.abs(v[:, 0])))
+    return None if np.isnan(ang).mean() > 0.5 else _val(np.nanmedian(ang))
+
+
+@metric("head_height_head_on", HEAD_ON)
+def head_height_head_on(ctx, cyc):
+    """How far the top of the head sits above the shoulder line, head-on, / shoulder
+    width, on non-breathing frames. Stands in for how much face the camera sees."""
+    a, b = cyc
+    tr = ctx.tr
+    line = 0.5 * (tr.p("l_shoulder")[:, 1] + tr.p("r_shoulder")[:, 1])
+    h = (line - tr.p("top_of_head")[:, 1])[a:b]
+    breathing = np.zeros(tr.n, bool)
+    for _, _, i, j in _breaths(ctx):
+        breathing[i:j + 1] = True
+    h = h[~breathing[a:b]]
+    if len(h) < 3 or np.isnan(h).mean() > 0.5 or not ctx.width > 0:
+        return None
+    return _val(np.nanmedian(h) / ctx.width)
+
+
+@metric("spine_angle", SIDE)
+def spine_angle(ctx, cyc):
+    """Neck->low-back line below horizontal, degrees. Sinking hips without needing the
+    ankles, which a deck camera rarely sees."""
+    a, b = cyc
+    d = ctx.tr.p("spine_at_waist")[a:b] - ctx.tr.p("spine_at_neck")[a:b]
+    v = np.degrees(np.arctan2(d[:, 1], np.abs(d[:, 0])))
+    return None if np.isnan(v).mean() > 0.5 else _val(np.nanmedian(v))
+
+
+@metric("heel_rise", SIDE)
+def heel_rise(ctx, cyc):
+    """Highest the near heel comes relative to the low back, / torso; positive = above
+    it. A big bicycle kick brings the heels up to where a deck camera can see them."""
+    a, b = cyc
+    s = ctx.s
+    ank, waist = ctx.tr.p(f"{s}_ankle")[a:b, 1], ctx.tr.p("spine_at_waist")[a:b, 1]
+    rise = (waist - ank) / ctx.torso
+    if (~np.isnan(rise)).sum() < 3:
+        return None
+    return _val(np.nanpercentile(rise, 95))
+
+
 # ================================================================ driver
 def compute(tr: PoseTrack, metric_ids=None):
     """

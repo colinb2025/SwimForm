@@ -3,7 +3,12 @@ One analysis = one side-view clip + one head-on clip.
 
 Each metric is measured from the view the workbook assigns it (side, head_on, or
 both: the 3D average stroke fused from the two clips, see stroke3d.py), so a flaw is
-judged from the angle that can actually see it. Every measurement says how it was taken. A metric whose clip had too few
+judged from the angle that can actually see it. Every measurement says how it was taken.
+
+Where a fault cannot be measured directly (usually the catch, from a deck camera), the
+workbook may allow a proxy: an indirect clue. Direct evidence always decides when it
+exists. A finding that rests on a proxy is marked `evidence: proxy`, ranked lower, and
+uses the workbook's hedged `proxy_observed` wording ("may be ... would confirm it"). A metric whose clip had too few
 readable stroke cycles is reported as not assessed, with the reason, and any issue
 that depends on it is reported as not assessed too. The athlete is never told about
 a fault the footage could not show.
@@ -84,6 +89,11 @@ def analyze(tracks, rules=DEFAULT_RULES, require=VIEWS, top_n=3,
         if tr.view != v:
             raise MissingViewError(f"track supplied as {v!r} is a {tr.view!r} track")
 
+    proxy_metrics = {r["metric_id"] for r in rules["issue_rules"] if r.get("evidence") == "proxy"}
+
+    def method(view, mid):
+        return METHOD[view].replace("direct", "proxy", 1) if mid in proxy_metrics else METHOD[view]
+
     per_view = {v: M.compute(tr) for v, tr in tracks.items()}
     fused = S3.compute(tracks[SIDE], tracks[HEAD_ON]) if SIDE in tracks and HEAD_ON in tracks else None
 
@@ -101,7 +111,7 @@ def analyze(tracks, rules=DEFAULT_RULES, require=VIEWS, top_n=3,
                 st = fused["stroke"]
                 value = fused["values"][mid]
                 measurements[mid] = round(value, 3)
-                detail[mid] = {"value": round(value, 3), "view": BOTH, "method": METHOD[BOTH],
+                detail[mid] = {"value": round(value, 3), "view": BOTH, "method": method(BOTH, mid),
                                "usable_cycles": min(st.cycles.values()), "cycles": min(st.cycles.values()),
                                "confidence": round(st.agreement, 2), "view_agreement": st.agreement}
             continue
@@ -129,7 +139,7 @@ def analyze(tracks, rules=DEFAULT_RULES, require=VIEWS, top_n=3,
         value = float(AGGREGATES[m["aggregate"]](usable))
         measurements[mid] = round(value, 3)
         per_cycle[mid] = usable
-        detail[mid] = {"value": round(value, 3), "view": view, "method": METHOD[view],
+        detail[mid] = {"value": round(value, 3), "view": view, "method": method(view, mid),
                        "usable_cycles": len(usable), "cycles": n, "confidence": round(len(usable) / n, 2)}
 
     result = R.evaluate(rules, measurements, per_cycle, top_n=top_n)
@@ -150,8 +160,11 @@ def analyze(tracks, rules=DEFAULT_RULES, require=VIEWS, top_n=3,
             issues_not_assessed[iid] = "; ".join(reasons)
 
     flagged = {f["issue_id"] for f in result["priorities"]} | set(result["other_issues"])
-    issues_clear = [i["issue_id"] for i in rules["issues"]
-                    if i["issue_id"] not in flagged and i["issue_id"] not in issues_not_assessed]
+    # Checked and fine, with how it was checked: a clear bill from a proxy is weaker.
+    issues_clear = {i["issue_id"]: result["assessed_with"].get(i["issue_id"], "direct") for i in rules["issues"]
+                    if i["issue_id"] not in flagged and i["issue_id"] not in issues_not_assessed}
+    other_issues = [{"issue_id": iid, "evidence": result["assessed_with"].get(iid, "direct")}
+                    for iid in result["other_issues"]]
 
     return {
         "views": {v: {"frames": tracks[v].n, "fps": tracks[v].fps, "cycles": len(per_view[v]["cycles"]),
@@ -159,9 +172,9 @@ def analyze(tracks, rules=DEFAULT_RULES, require=VIEWS, top_n=3,
         "measurements": detail,
         "metrics_not_assessed": not_assessed,
         "priorities": result["priorities"],
-        "other_issues": result["other_issues"],
+        "other_issues": other_issues,
         "issues_not_assessed": issues_not_assessed,
-        "issues_clear": issues_clear,  # checked, and not a problem
+        "issues_clear": issues_clear,  # {issue_id: "direct" | "proxy"}: checked, and not a problem
         "errors": {mid: msg for v in per_view.values() for mid, msg in v["errors"].items()},
         "stroke3d": None if fused is None else {
             "used": fused["reason"] is None,
