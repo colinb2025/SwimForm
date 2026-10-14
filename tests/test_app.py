@@ -172,7 +172,6 @@ def test_every_fault_gets_a_posture_snapshot(fault):
 
 
 def test_findings_carry_snapshot_and_measured_caption(client):
-    from app import presenter
     v = view_for(client, upload(client, side=("a.mp4", b"7"), head_on=("b.mov", b"8")))
     for p in v["priorities"]:
         assert p["caption"] and "We flag" in p["caption"]
