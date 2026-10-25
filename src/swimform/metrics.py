@@ -24,6 +24,10 @@ MIN_CYCLE_S, MAX_CYCLE_S = 0.6, 2.5
 MIN_PULL_VISIBILITY = 0.7  # share of frames the near hand must be trusted to measure the pull
 
 REGISTRY = {}  # metric_id -> (view, fn(ctx, cycle) -> float | None | SKIP)
+# Side-view metrics that measure one limb: the near arm or leg (`ctx.s`). From the side
+# only the near limb is seen clearly, so these are measured per arm, each from the pass
+# of a down-and-back clip where that arm faces the camera (see swimform.passes).
+SIDED = set()
 
 # A metric returns SKIP for a cycle where it does not apply (no breath taken in that
 # cycle), as opposed to None for a cycle it could not read. Skipped cycles do not
@@ -33,9 +37,11 @@ SKIP = "skip"
 BREATH_MIN_TURN = 0.15  # sideways head shift, as a share of shoulder width, that counts as a breath
 
 
-def metric(metric_id, view):
+def metric(metric_id, view, sided=False):
     def deco(fn):
         REGISTRY[metric_id] = (view, fn)
+        if sided:
+            SIDED.add(metric_id)
         return fn
     return deco
 
@@ -196,6 +202,13 @@ class Context:
         self.sign = 1.0 if (math.isnan(sx) or sx >= 0) else -1.0   # +1: travelling right
         rates = tr.detection_rates()
         self.s = "r" if rates["r_wrist"] + rates["r_elbow"] >= rates["l_wrist"] + rates["l_elbow"] else "l"
+        # One pass of a down-and-back clip (swimform.passes) arrives already labelled:
+        # its near side follows the whole clip's evidence, not just this pass's.
+        meta = self.raw.meta
+        if meta.get("near_side") in ("r", "l"):
+            self.s = meta["near_side"]
+        if meta.get("direction") in (1, -1):
+            self.sign = float(meta["direction"])
         self.torso = _nanmed(np.linalg.norm(spine, axis=-1))
         if math.isnan(self.torso):
             self.torso = _nanmed(np.linalg.norm(tr.p(f"{self.s}_shoulder") - tr.p(f"{self.s}_hip"), axis=-1))
@@ -291,7 +304,7 @@ def _pull_window(ctx, cyc, lo, hi):
     return np.arange(start + int(lo * n), start + max(int(hi * n), int(lo * n) + 1))
 
 
-@metric("catch_forearm_angle", SIDE)
+@metric("catch_forearm_angle", SIDE, sided=True)
 def catch_forearm_angle(ctx, cyc):
     """Best (most vertical) forearm angle early in the pull, degrees from vertical."""
     w = _pull_window(ctx, cyc, 0.0, 0.4)
@@ -301,7 +314,7 @@ def catch_forearm_angle(ctx, cyc):
     return None if np.isnan(v).mean() > 0.5 else _val(np.nanmin(v))
 
 
-@metric("catch_upper_arm_angle", SIDE)
+@metric("catch_upper_arm_angle", SIDE, sided=True)
 def catch_upper_arm_angle(ctx, cyc):
     """Shoulder->elbow angle below horizontal when the forearm first reaches vertical."""
     w = _pull_window(ctx, cyc, 0.0, 0.75)
@@ -321,7 +334,7 @@ def catch_upper_arm_angle(ctx, cyc):
     return _val(np.degrees(np.arctan2(d[1], d[0] * ctx.sign)))
 
 
-@metric("mid_pull_elbow_angle", SIDE)
+@metric("mid_pull_elbow_angle", SIDE, sided=True)
 def mid_pull_elbow_angle(ctx, cyc):
     """Interior elbow angle when the hand passes under the shoulder."""
     start, exit_ = ctx.phases(cyc)
@@ -336,7 +349,7 @@ def mid_pull_elbow_angle(ctx, cyc):
     return _val(ang)
 
 
-@metric("pull_exit_position", SIDE)
+@metric("pull_exit_position", SIDE, sided=True)
 def pull_exit_position(ctx, cyc):
     """(hand - hip) along the direction of travel at exit / torso; positive = past the hip."""
     if ctx.anchor != "pull":
@@ -361,7 +374,7 @@ def _mid_recovery(ctx, cyc):
 # outward swing of a high-elbow recovery, so its 2D angle misreads good technique.
 
 
-@metric("recovery_elbow_height", SIDE)
+@metric("recovery_elbow_height", SIDE, sided=True)
 def recovery_elbow_height(ctx, cyc):
     """(hand depth - elbow depth) / upper-arm length at mid-recovery; positive = elbow higher."""
     i = _mid_recovery(ctx, cyc)
@@ -400,7 +413,7 @@ def body_line_angle(ctx, cyc):
     return None if np.isnan(v).mean() > 0.5 else _val(np.nanmedian(v))
 
 
-@metric("kick_knee_angle", SIDE)
+@metric("kick_knee_angle", SIDE, sided=True)
 def kick_knee_angle(ctx, cyc):
     """Smallest interior knee angle in the cycle (deepest knee bend), near leg."""
     a, b = cyc
@@ -633,7 +646,7 @@ def kick_width(ctx, cyc):
 # `evidence = proxy`: they are consulted only when no direct measurement of that issue
 # was possible, and findings based on them are worded as "may be", never as fact.
 
-@metric("exit_reappear_position", SIDE)
+@metric("exit_reappear_position", SIDE, sided=True)
 def exit_reappear_position(ctx, cyc):
     """Where the hand first breaks the surface, (hand - low back) along the direction of
     travel / torso; positive = past the hip. Deck footage only: it needs the hand to be
@@ -648,7 +661,7 @@ def exit_reappear_position(ctx, cyc):
     return _val(-x / ctx.torso)
 
 
-@metric("lead_hand_fraction", SIDE)
+@metric("lead_hand_fraction", SIDE, sided=True)
 def lead_hand_fraction(ctx, cyc):
     """Share of the cycle the near hand is seen out ahead of the head. One hand only,
     so it works when the far hand is hidden; a long glide holds it out front longer.
@@ -698,7 +711,7 @@ def spine_angle(ctx, cyc):
     return None if np.isnan(v).mean() > 0.5 else _val(np.nanmedian(v))
 
 
-@metric("heel_rise", SIDE)
+@metric("heel_rise", SIDE, sided=True)
 def heel_rise(ctx, cyc):
     """Highest the near heel comes relative to the low back, / torso; positive = above
     it. A big bicycle kick brings the heels up to where a deck camera can see them."""
@@ -733,7 +746,7 @@ def compute(tr: PoseTrack, metric_ids=None):
                 errors.setdefault(mid, f"{type(e).__name__}: {e}")
                 out.append(None)
         values[mid] = out
-    return {"view": tr.view, "fps": tr.fps,
+    return {"view": tr.view, "fps": tr.fps, "near": getattr(ctx, "s", None) if tr.view == SIDE else None,
             "cycles": [[int(a), int(b)] for a, b in ctx.cycles], "values": values, "errors": errors}
 
 

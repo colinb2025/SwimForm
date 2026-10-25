@@ -9,11 +9,15 @@ analysing it and reporting faults that are really camera-angle artefacts.
 The angle is read from body geometry, not trusted from the upload slot:
   - side-on, the spine runs across the frame and the two shoulders nearly overlap;
   - head-on, the shoulders spread across the frame and the spine points at the camera.
+
+A side clip can include a turn (a 50, down and back): it is split into passes and the
+turn is cut out, so the swimmer is measured from both sides (see passes.py).
 """
 import math
 import numpy as np
 
 from . import metrics as M
+from . import passes as P
 from .posedata import PoseTrack
 from .schema import HEAD_ON, SIDE
 
@@ -74,9 +78,18 @@ def check_clip(tr: PoseTrack, expected_view):
             + ("square-on from the side of the pool." if expected_view == SIDE
                else "straight down the lane, from the end wall."))
 
-    cycles = len(M.Context(tr).cycles)
+    if expected_view == SIDE and guess == SIDE:
+        # A side clip may swim down and back; the turn is cut out and each pass counted.
+        passes = P.split(tr)
+        cycles = sum(len(M.Context(p.track).cycles) for p in passes)
+    else:
+        passes = None
+        cycles = len(M.Context(tr).cycles)
     if not problems and cycles < MIN_CYCLES:
         problems.append(
             f"We could only read {cycles} full stroke cycle{'s' if cycles != 1 else ''}. "
-            "Film at least 15 seconds of steady swimming, without turns or stops.")
-    return {"ok": not problems, "problems": problems, "view_guess": guess, "visible": visible, "cycles": cycles}
+            + ("Film a 50 (down the pool and back) of steady swimming. The turn in the middle is fine."
+               if expected_view == SIDE else
+               "Film at least 15 seconds of steady swimming, without turns or stops."))
+    return {"ok": not problems, "problems": problems, "view_guess": guess, "visible": visible, "cycles": cycles,
+            "passes": P.summary(passes) if passes is not None else None}

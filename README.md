@@ -75,6 +75,30 @@ On synthetic swimmers whose true 3D motion is known, the fused recovery elbow an
 back within ~1–2° of the truth on poor footage, from laps with different start points and
 stroke rates.
 
+## Down and back: both arms from one side clip
+
+From the deck, a side camera sees the arm (and leg) nearest to it clearly and the far one
+partly hidden behind the body. So the side clip is a 50: down the pool, turn, back, filmed
+from the same deck. On the way down one side of the swimmer faces the camera, on the way
+back the other, at the same lane distance.
+
+`swimform.passes` splits the clip at the turn: direction comes from the spine (low back →
+neck points the way the swimmer travels), the wall, push-off and breakout are cut out, and
+each pass is tagged with its near side, read from how confidently each side is tracked.
+The camera stays on one deck, so the near side must flip with direction; a pass with weak
+visibility evidence takes its near side from that rule.
+
+Every one-limb side metric (`metrics.SIDED`: catch, mid-pull, exit, recovery height, kick
+knee, and their proxies) is then measured per arm, each from the pass where that arm faced
+the camera. The worse arm decides the finding, and the rules are re-run on each arm's own
+readings so a finding can say "seen on your left arm only; your right arm looks fine". A
+one-way clip still works: it says which arm it checked, and never clears the arm it
+couldn't see. Whole-body metrics (stroke rate, head, body line) pool both lengths.
+
+On synthetic swimmers with a fault on one arm only (`Swimmer(arm_faults={"l": {...}})`),
+a one-way clip filmed from the swimmer's right misses a left-arm dropped elbow; a
+down-and-back clip catches it and names the arm, across clean, typical and poor footage.
+
 ## Web app
 
 ```bash
@@ -150,7 +174,8 @@ The tests hold three lines against the real workbook:
 
 - a clean swimmer triggers **no** fault, across clean, noisy and poor footage, from either camera;
 - each of the 14 faults triggers its own issue when the footage can show it;
-- when it cannot (deck camera, underwater joint), the issue is reported not assessed.
+- when it cannot (deck camera, underwater joint), the issue is reported not assessed;
+- a fault on one arm is caught from a down-and-back side clip and attributed to that arm.
 
 ## The rules workbook
 
@@ -197,6 +222,7 @@ src/swimform/
   posedata.py          pose JSON <-> PoseTrack: the contract any pose model must meet
   pose.py              video  -> landmarks, overlay, detection rates
   metrics.py           landmarks -> stroke cycles -> every workbook measurement, per view
+  passes.py            side clip -> passes split at the turn, each tagged with its near side
   stroke3d.py          side + head-on tracks -> 3D average stroke -> 3D measurements
   analyze.py           side + head-on tracks -> measurements, faults, not-assessed reasons
   rules.py             workbook + measurements -> scores, faults, drills

@@ -6,8 +6,9 @@ The pose step is pluggable (SWIMFORM_POSE):
   synthetic  default until the fine-tuned model is ready. Generates a deterministic
              synthetic swimmer from the uploaded files' bytes, so the whole flow runs
              end to end. Dev conveniences: a file name containing "head"/"front" or
-             "side" decides which view is generated (to try the swapped-clip check), and
-             "deck" simulates a deck-level camera.
+             "side" decides which view is generated (to try the swapped-clip check),
+             "deck" simulates a deck-level camera, and the side clip swims a 50 (down
+             and back) unless its name contains "oneway".
   yolo       runs swimform.pose with the weights in SWIMFORM_WEIGHTS.
 """
 import hashlib
@@ -49,16 +50,22 @@ def _sha(path):
 
 
 def _synthetic_swimmer(seed):
-    from swimform.synthetic import FAULTS, Swimmer
+    from swimform.synthetic import ARM_FAULTS, FAULTS, Swimmer
     rng = np.random.default_rng(seed)
     k = int(rng.integers(1, 4))
     picks = rng.choice(len(FAULTS), size=k, replace=False)
-    return Swimmer({FAULTS[i]: float(rng.uniform(0.7, 1.0)) for i in picks},
-                   cycle_s=float(rng.uniform(1.4, 1.8)))
+    faults, arm_faults = {}, {}
+    for i in picks:
+        f, sev = FAULTS[i], float(rng.uniform(0.7, 1.0))
+        if f in ARM_FAULTS and rng.random() < 0.5:   # one-sided, as many real ones are
+            arm_faults.setdefault(str(rng.choice(["r", "l"])), {})[f] = sev
+        else:
+            faults[f] = sev
+    return Swimmer(faults, cycle_s=float(rng.uniform(1.4, 1.8)), arm_faults=arm_faults)
 
 
 def pose_synthetic(paths, names):
-    from swimform.synthetic import generate
+    from swimform.synthetic import generate, generate_down_and_back
     digests = {s: _sha(paths[s]) for s in SLOTS}
     session_seed = int.from_bytes(hashlib.sha256(digests[SIDE] + digests[HEAD_ON]).digest()[:8], "big")
     sw = _synthetic_swimmer(session_seed)
@@ -68,7 +75,10 @@ def pose_synthetic(paths, names):
         view = HEAD_ON if ("head" in n or "front" in n) else SIDE if "side" in n else slot
         camera = "deck" if "deck" in n else "underwater"
         seed = int.from_bytes(digests[slot][:4], "big")
-        tr = generate(view, sw, camera=camera, quality="typical", seed=seed, t0=3.7 if view == HEAD_ON else 0.0)
+        if view == SIDE and "oneway" not in n:
+            tr = generate_down_and_back(sw, camera=camera, quality="typical", seed=seed)
+        else:
+            tr = generate(view, sw, camera=camera, quality="typical", seed=seed, t0=3.7 if view == HEAD_ON else 0.0)
         tr.view = slot   # the slot it was uploaded into; the clip check decides if that was right
         tracks[slot] = tr
     return tracks

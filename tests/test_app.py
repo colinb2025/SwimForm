@@ -207,3 +207,38 @@ def test_pages_load_their_scripts_and_work_without_them(client):
     assert "/static/upload.js" in page and 'action="/analyses"' in page   # plain form post fallback
     rep = client.get(upload(client).headers["location"]).text
     assert "/static/report.js" in rep and "data-report-id" in rep
+
+
+# ------------------------------------------------------------ down and back
+def test_report_names_the_arm_a_one_sided_fault_is_on(client, monkeypatch):
+    from app import pipeline
+    monkeypatch.setattr(pipeline, "_synthetic_swimmer",
+                        lambda seed: Swimmer(cycle_s=1.6, arm_faults={"l": {"dropped_elbow": 1.0}}))
+    r = upload(client, side=("side.mp4", b"50"), head_on=("head.mov", b"hd"))
+    page = text(client.get(r.headers["location"]).text)
+    assert "Dropped elbow" in page and "Seen on your left arm only. Your right arm looks fine." in page
+
+
+def test_one_way_side_clip_says_which_arm_was_checked(client, monkeypatch):
+    from app import pipeline
+    monkeypatch.setattr(pipeline, "_synthetic_swimmer",
+                        lambda seed: Swimmer(cycle_s=1.6, arm_faults={"l": {"dropped_elbow": 1.0}}))
+    r = upload(client, side=("side_oneway.mp4", b"25"), head_on=("head.mov", b"hd"))
+    v = view_for(client, r)
+    assert "Dropped elbow" not in {p["name"] for p in v["priorities"]}
+    assert v["one_side"]["Dropped elbow"] == "right arm only"
+
+
+def test_arm_notes():
+    from app.presenter import _arm_note, _checked_one_side
+    both = {"limb": "arm", "checked": ["r", "l"], "affected": ["r", "l"], "unseen": {}}
+    assert _arm_note(both) == "Seen on both arms."
+    one = {"limb": "leg", "checked": ["r"], "affected": ["r"], "unseen": {"l": "x"}}
+    assert _arm_note(one).startswith("Seen on your right leg.") and "film a 50" in _arm_note(one)
+    assert _checked_one_side(one) == "right leg only"
+    assert _arm_note({"limb": "arm", "checked": ["r", "l"], "affected": [], "unseen": {}}) is None
+
+
+def test_guide_asks_for_a_50_from_the_side(client):
+    page = text(client.get("/guide").text)
+    assert "Film a 50" in page and "same side of the pool" in page

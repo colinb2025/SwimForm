@@ -38,6 +38,36 @@ def _advice(reason, below_water):
     return "Film closer, with the whole swimmer in frame, and we can check this."
 
 
+SIDE_NAME = {"r": "right", "l": "left"}
+OTHER = {"r": "l", "l": "r"}
+
+
+def _arm_note(arms):
+    """Which arm (or leg) a finding was seen on, and whether the other one was checked."""
+    if not arms or not arms.get("checked"):
+        return None
+    limb, checked, affected = arms["limb"], arms["checked"], arms["affected"]
+    if len(checked) == 2:
+        if len(affected) == 1:
+            sd = affected[0]
+            return f"Seen on your {SIDE_NAME[sd]} {limb} only. Your {SIDE_NAME[OTHER[sd]]} {limb} looks fine."
+        if len(affected) == 2:
+            return f"Seen on both {limb}s."
+        return None
+    sd = checked[0]
+    if affected:
+        return (f"Seen on your {SIDE_NAME[sd]} {limb}. Your {SIDE_NAME[OTHER[sd]]} {limb} didn't face the camera, "
+                f"so we couldn't check it: film a 50, down the pool and back, and we'll see both.")
+    return None
+
+
+def _checked_one_side(arms):
+    """'right arm only' when an arm-specific check could only look at one side."""
+    if arms and len(arms.get("checked", [])) == 1:
+        return f"{SIDE_NAME[arms['checked'][0]]} {arms['limb']} only"
+    return None
+
+
 def _sentence(text):
     return text[:1].upper() + text[1:]
 
@@ -91,15 +121,18 @@ def build(record, rules):
         return None
 
     strokes = rep.get("average_strokes") or {}
+    issue_arms = rep.get("issue_arms") or {}
     priorities = []
     for p in rep["priorities"]:
-        snap = snapshots.svg(strokes, p["issue_id"]) if strokes else None
+        arms = p.get("arms") or issue_arms.get(p["issue_id"])
+        one_arm = arms["affected"][0] if arms and len(arms["affected"]) == 1 else None
+        snap = snapshots.svg(strokes, p["issue_id"], arm=one_arm) if strokes else None
         priorities.append({
             "snapshot": snap[0] if snap else None,
             "snapshot_moment": snap[1] if snap else None,
             "snapshot_view": snapshots.SPECS[p["issue_id"]][0] if snap else None,
             "caption": caption(p["issue_id"], p["evidence"]),
-            "name": p["name"], "estimated": p["evidence"] == "proxy",
+            "name": p["name"], "estimated": p["evidence"] == "proxy", "arm_note": _arm_note(arms),
             "observed": p["what_we_observed"], "why": p["why_it_matters"],
             "drills": [d for d in p["interventions"] if d["type"] == "drill"],
             "cues": [d for d in p["interventions"] if d["type"] == "cue"],
@@ -107,6 +140,7 @@ def build(record, rules):
         })
     shown = {p["issue_id"] for p in rep["priorities"]}
     also = [{"name": issues[o["issue_id"]]["name"], "estimated": o["evidence"] == "proxy",
+             "arm_note": _arm_note(o.get("arms") or issue_arms.get(o["issue_id"])),
              "observed": (issues[o["issue_id"]].get("proxy_observed") if o["evidence"] == "proxy"
                           else issues[o["issue_id"]]["what_we_observed"])}
             for o in rep["other_issues"] if o["issue_id"] not in shown]
@@ -117,16 +151,25 @@ def build(record, rules):
         unchecked.append({"name": issues[iid]["name"], "advice": _advice(reason, below)})
     unchecked.sort(key=lambda u: u["name"])
 
-    good = sorted([{"name": issues[iid]["name"], "estimated": ev == "proxy"}
+    good = sorted([{"name": issues[iid]["name"], "estimated": ev == "proxy",
+                    "one_side": _checked_one_side(issue_arms.get(iid))}
                    for iid, ev in rep["issues_clear"].items()], key=lambda g: (g["estimated"], g["name"]))
+    one_side = {g["name"]: g["one_side"] for g in good if g["one_side"]}
 
     view_label = {SIDE: "Side view", HEAD_ON: "Head-on view", BOTH: "3D, from both clips"}
     table = []
     for mid, m in rep["measurements"].items():
         meta = metrics.get(mid, {})
+        arms = m.get("arms") or {}
+        per_arm = None
+        if len(arms) == 2:
+            per_arm = f"right {_fmt(arms['r']['value'], meta.get('unit'))}, left {_fmt(arms['l']['value'], meta.get('unit'))}"
+        elif len(arms) == 1:
+            per_arm = f"{SIDE_NAME[next(iter(arms))]} {m.get('limb', 'arm')} only"
         table.append({
             "name": _sentence(meta.get("name", mid).replace("Proxy: ", "")),
             "value": _fmt(m["value"], meta.get("unit")),
+            "per_arm": per_arm,
             "score": m.get("score"),
             "source": view_label.get(m["view"], m["view"]),
             "estimate": m["method"].startswith("proxy"),
@@ -139,7 +182,8 @@ def build(record, rules):
     s3 = rep.get("stroke3d") or {}
     return {
         "id": record["id"], "created": record["created"][:10], "created_iso": record["created"],
-        "lanes": lanes, "counts": counts,
+        "lanes": lanes, "counts": counts, "one_side": one_side,
+        "both_sides": any(len(a.get("checked", [])) == 2 for a in issue_arms.values()),
         "priorities": priorities, "also": also, "good": good, "unchecked": unchecked,
         "table": table, "stroke_rate": round(rate) if rate else None,
         "fused": bool(s3.get("used")), "fused_agreement": s3.get("view_agreement"),

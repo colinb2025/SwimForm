@@ -8,6 +8,7 @@ the ideal range comes from the workbook, so the picture never contradicts the fi
 All coordinates are numbers produced by the analysis, so the SVG is built here as a
 string with no user-supplied text inside it.
 """
+import contextvars
 import math
 
 import numpy as np
@@ -26,8 +27,14 @@ def _arr(frames):
     return a
 
 
+# Set by svg() when a finding is on one arm only, so the picture shows that arm.
+_ARM = contextvars.ContextVar("snapshot_arm", default=None)
+
+
 def _near(a):
-    """The arm the camera saw best."""
+    """The arm to draw: the finding's arm if it has one, else the arm seen best."""
+    if _ARM.get() in ("r", "l"):
+        return _ARM.get()
     r = (~np.isnan(a[:, IDX["r_wrist"], 0])).sum()
     l = (~np.isnan(a[:, IDX["l_wrist"], 0])).sum()
     return "r" if r >= l else "l"
@@ -203,8 +210,17 @@ def _f(x):
     return f"{x:.1f}"
 
 
-def svg(average_strokes, issue_id):
-    """-> (svg markup, moment description) or None if the joints weren't seen."""
+def svg(average_strokes, issue_id, arm=None):
+    """-> (svg markup, moment description) or None if the joints weren't seen.
+    arm: "r" | "l" to draw that arm (a finding seen on one arm only)."""
+    token = _ARM.set(arm)
+    try:
+        return _svg(average_strokes, issue_id)
+    finally:
+        _ARM.reset(token)
+
+
+def _svg(average_strokes, issue_id):
     spec = SPECS.get(issue_id)
     if spec is None:
         return None

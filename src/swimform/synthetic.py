@@ -37,6 +37,10 @@ FAULTS = (
     "crossover_entry", "sinking_hips", "excessive_knee_bend", "wide_kick",
     "over_gliding", "wide_recovery_straight_arm",
 )
+# Faults that live in one arm's mechanics, so a swimmer can have them on one side only
+# (a dropped elbow on the breathing side is common).
+ARM_FAULTS = ("dropped_elbow", "straight_arm_pull", "short_pull", "crossover_entry",
+              "wide_recovery_straight_arm")
 
 L_UP, L_FORE, L_THIGH, L_SHIN = 0.30, 0.30, 0.42, 0.40
 HALF_W, HIP_HALF_W = 0.20, 0.13
@@ -51,19 +55,38 @@ QUALITY = {
 
 
 class Swimmer:
-    def __init__(self, faults=None, cycle_s=1.6, breath_side="r", breath_every=1):
-        """breath_every: breathe once every N stroke cycles; 0 = no breath in the clip."""
+    def __init__(self, faults=None, cycle_s=1.6, breath_side="r", breath_every=1, arm_faults=None):
+        """
+        breath_every: breathe once every N stroke cycles; 0 = no breath in the clip.
+        arm_faults:   {"l" | "r": {fault: severity}} for one-sided arm faults (ARM_FAULTS),
+                      overriding `faults` for that arm only.
+        """
         faults = dict(faults or {})
         for k in faults:
             if k not in FAULTS:
                 raise KeyError(f"unknown fault {k!r}; known: {', '.join(FAULTS)}")
         self.faults = {k: float(np.clip(faults.get(k, 0.0), 0, 1)) for k in FAULTS}
+        self.arm_faults = {}
+        for sd, fs in (arm_faults or {}).items():
+            if sd not in ("l", "r"):
+                raise KeyError(f"arm must be 'l' or 'r', got {sd!r}")
+            for k in fs:
+                if k not in ARM_FAULTS:
+                    raise KeyError(f"{k!r} is not a one-arm fault; those are: {', '.join(ARM_FAULTS)}")
+            self.arm_faults[sd] = {k: float(np.clip(v, 0, 1)) for k, v in fs.items()}
         self.cycle_s = cycle_s
         self.breath_side = breath_side
         self.breath_every = breath_every
 
     def __getitem__(self, k):
         return self.faults[k]
+
+    def arm(self, sd):
+        """This swimmer as seen by one arm: its one-sided faults applied."""
+        return _ArmView(self, self.arm_faults.get(sd, {}))
+
+    def arm_severity(self, sd, k):
+        return self.arm_faults.get(sd, {}).get(k, self.faults[k])
 
     # Arm timing, as fractions of one arm's cycle: glide -> pull -> recovery.
     @property
@@ -87,6 +110,20 @@ class Swimmer:
         """Breathing-arm phase where the head is most turned: at pull end, or as late as
         the hand's re-entry (the workbook's 'still turned as the arm returns to the front')."""
         return self.pull_end + self.recovery * self["late_breath"]
+
+
+class _ArmView:
+    """Duck-types Swimmer for one arm: fault lookups see that arm's overrides; timing
+    (glide, pull, recovery) is the swimmer's own."""
+
+    def __init__(self, sw, overrides):
+        self._sw, self._over = sw, overrides
+
+    def __getitem__(self, k):
+        return self._over.get(k, self._sw[k])
+
+    def __getattr__(self, name):
+        return getattr(self._sw, name)
 
 
 # ------------------------------------------------------------------ helpers
@@ -246,7 +283,7 @@ def truth3d(sw, t):
     leg_tilt = np.radians(4 + 12 * sink + 4 * high)
     for sd, side, off, koff in (("r", -1.0, 0.0, 0.0), ("l", 1.0, 0.5, np.pi)):
         sh = J[:, IDX[f"{sd}_shoulder"]]
-        e, w = _arm((phi + off) % 1, sw, side, sh)
+        e, w = _arm((phi + off) % 1, sw.arm(sd), side, sh)
         put(f"{sd}_elbow", e)
         put(f"{sd}_wrist", w)
         hip_a, knee_f = _kick(t, sw, koff)
@@ -262,13 +299,16 @@ def truth3d(sw, t):
 
 # ------------------------------------------------------------------ public
 def generate(view, swimmer=None, *, duration_s=12.0, fps=30.0, size=(1920, 1080),
-             facing="right", camera="underwater", quality="typical", seed=0, t0=0.0):
+             facing="right", camera="underwater", quality="typical", seed=0, t0=0.0, near="r"):
     """
     A synthetic PoseTrack for one camera view of the swimmer.
 
     camera: "underwater" sees below-water joints; "deck" sees them less the deeper they
             are (shallow joints stay readable, the catch does not), as on real deck footage.
     facing: side view only — direction of travel in the image.
+    near:   side view only — the side of the swimmer facing the camera ("r" or "l").
+            A camera on the swimmer's left sees them travel the other way, so a
+            physical clip pairs near="r" with facing="right" and near="l" with "left".
     t0:     start time in seconds, so two views can come from different laps.
     """
     if view not in (SIDE, HEAD_ON):
@@ -294,9 +334,10 @@ def generate(view, swimmer=None, *, duration_s=12.0, fps=30.0, size=(1920, 1080)
     px[..., 1] = cy * H + P[..., 1] * scale * W
 
     conf = np.full((n, NUM_KEYPOINTS), 0.9)
-    if view == SIDE:  # camera on the swimmer's right: left side is the far side
+    if view == SIDE:  # the side away from the camera is partly hidden behind the body
+        far = "l_" if near == "r" else "r_"
         for k in KEYPOINTS:
-            if k.startswith("l_"):
+            if k.startswith(far):
                 conf[:, IDX[k]] = 0.62
     if camera == "underwater":
         conf = np.where(under, conf * 0.95, conf)
@@ -329,9 +370,36 @@ def generate(view, swimmer=None, *, duration_s=12.0, fps=30.0, size=(1920, 1080)
 
     data = np.concatenate([px, conf[..., None]], -1)
     meta = {"source": "synthetic", "seed": seed, "quality": quality, "camera": camera,
-            "facing": facing if view == SIDE else None, "t0": t0,
-            "truth": {"faults": sw.faults, "cycle_s": sw.cycle_s, "breath_side": sw.breath_side}}
+            "facing": facing if view == SIDE else None, "near": near if view == SIDE else None, "t0": t0,
+            "truth": {"faults": sw.faults, "arm_faults": sw.arm_faults,
+                      "cycle_s": sw.cycle_s, "breath_side": sw.breath_side}}
     return PoseTrack(data, fps, size, view, meta)
+
+
+def generate_down_and_back(swimmer=None, *, lap_s=10.0, turn_s=2.5, fps=30.0, size=(1920, 1080),
+                           camera="underwater", quality="typical", seed=0, t0=0.0, first_near="r"):
+    """
+    One side-view clip of a 50: down the pool, a turn, and back.
+
+    The camera stays on one deck, so on the way down one side of the swimmer faces it
+    and on the way back the other side does, at the same distance: both arms get a
+    clear, near-side view from a single recording. During the turn (wall, push-off,
+    breakout) the swimmer is underwater and unreadable, so those frames are lost.
+    """
+    sw = swimmer or Swimmer()
+    second = "l" if first_near == "r" else "r"
+    face = {"r": "right", "l": "left"}
+    kw = dict(fps=fps, size=size, camera=camera, quality=quality)
+    a = generate(SIDE, sw, duration_s=lap_s, facing=face[first_near], near=first_near,
+                 seed=seed, t0=t0, **kw)
+    b = generate(SIDE, sw, duration_s=lap_s, facing=face[second], near=second,
+                 seed=seed + 1, t0=t0 + lap_s + turn_s, **kw)
+    gap = np.full((int(round(turn_s * fps)), NUM_KEYPOINTS, 3), np.nan)
+    gap[..., 2] = 0.0
+    meta = dict(a.meta, near=None, facing=None, layout="down_and_back",
+                passes=[{"start": 0, "near": first_near},
+                        {"start": a.n + len(gap), "near": second}])
+    return PoseTrack(np.concatenate([a.data, gap, b.data]), fps, size, SIDE, meta)
 
 
 def main():

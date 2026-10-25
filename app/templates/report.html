@@ -63,6 +63,7 @@
     <div class="finding-body{% if not p.snapshot %} no-snap{% endif %}">
       <div>
         <p class="observed">{{ p.observed }}</p>
+        {% if p.arm_note %}<p class="arm-note">{{ p.arm_note }}</p>{% endif %}
         <p class="why">{{ p.why }}</p>
         {% if p.caption %}<p class="measure">{{ p.caption }}</p>{% endif %}
       </div>
@@ -108,7 +109,7 @@
 <section class="card section" aria-labelledby="also-h">
   <h2 id="also-h">Also noticed</h2>
   <ul class="advice-list" style="margin-top:14px">
-    {% for a in r.also %}<li><span class="dot dot-{{ 'estimated' if a.estimated else 'flagged' }}" aria-hidden="true"></span><b>{{ a.name }}</b><span class="muted">{{ a.observed }}</span></li>{% endfor %}
+    {% for a in r.also %}<li><span class="dot dot-{{ 'estimated' if a.estimated else 'flagged' }}" aria-hidden="true"></span><b>{{ a.name }}</b><span class="muted">{{ a.observed }}{% if a.arm_note %} {{ a.arm_note }}{% endif %}</span></li>{% endfor %}
   </ul>
 </section>
 {% endif %}
@@ -129,6 +130,7 @@
             {% if l.status == "unchecked" and advice.get(l.name) %}<span class="muted small" style="display:block">{{ advice[l.name] }}</span>{% endif %}
           </span>
           {% if l.status == "clear_est" %}<span class="lane-note">estimated</span>{% endif %}
+          {% if l.status in ["clear", "clear_est"] and r.one_side.get(l.name) %}<span class="lane-note">{{ r.one_side[l.name] }}</span>{% endif %}
         </li>
         {% endfor %}
       </ul>
@@ -142,6 +144,7 @@
   <summary>How we measured it</summary>
   <p class="intro-text">Each score shows how close a measurement sits to the ideal range (100 = inside it).
     Estimates have no score: they can raise a flag, but they aren't precise enough to grade.
+    {% if r.both_sides %}Arm and leg measurements were taken from the side, each from the length where that side faced the camera; the worse side is the one shown.{% endif %}
     {% if r.fused %}Some measurements combine both clips into a 3D picture of your typical stroke; the two clips matched {{ (100 * r.fused_agreement)|round|int }}% on depth, the one thing both cameras see.{% endif %}</p>
   <div class="table-wrap">
   <table>
@@ -150,7 +153,7 @@
       {% for t in r.table %}
       <tr{% if t.estimate %} class="row-est"{% endif %}>
         <th scope="row">{{ t.name }}</th>
-        <td data-label="Value">{{ t.value }}</td><td data-label="Score">{% if t.score is not none %}{{ t.score }}/100{% else %}<span class="na">—</span>{% endif %}</td><td data-label="From">{{ t.source }}</td><td data-label="Readable strokes">{{ t.confidence }}%</td>
+        <td data-label="Value">{{ t.value }}{% if t.per_arm %}<span class="per-arm">{{ t.per_arm }}</span>{% endif %}</td><td data-label="Score">{% if t.score is not none %}{{ t.score }}/100{% else %}<span class="na">—</span>{% endif %}</td><td data-label="From">{{ t.source }}</td><td data-label="Readable strokes">{{ t.confidence }}%</td>
       </tr>
       {% endfor %}
     </tbody>

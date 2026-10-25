@@ -351,6 +351,8 @@ p + p { margin-top: 0.75em; }
 .finding-body.no-snap { grid-template-columns: 1fr; }
 .observed { font-size: 1.05rem; color: var(--ink); }
 .why { color: var(--ink-2); margin-top: 8px; }
+.arm-note { margin-top: 8px; font-weight: 600; color: var(--ink); }
+.per-arm { display: block; font-size: 0.8rem; color: var(--ink-3); }
 .measure {
   display: inline-flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 14px; padding: 8px 12px;
   background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-sm); font-size: 0.9rem;

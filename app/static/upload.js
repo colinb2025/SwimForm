@@ -15,7 +15,7 @@
     if (isFinite(d) && d < MIN_S) {
       out.push("This clip is only " + fmtSeconds(d) + ". We need at least 15 seconds of steady swimming to read enough strokes.");
     } else if (isFinite(d) && d > MAX_S) {
-      out.push("This clip is " + fmtSeconds(d) + ". It will work, but trimming to 15–30 seconds of steady swimming is faster.");
+      out.push("This clip is " + fmtSeconds(d) + ". It will work, but trimming it to one 50 of steady swimming is faster.");
     }
     if (video.videoHeight > video.videoWidth) {
       out.push("This clip is vertical. Turn the phone sideways so the whole swimmer fits.");

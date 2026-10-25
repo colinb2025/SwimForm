@@ -25,6 +25,7 @@ import math
 import numpy as np
 
 from . import metrics as M
+from . import passes as P
 from .posedata import PoseTrack
 from .schema import HEAD_ON, IDX, KEYPOINTS, SIDE
 
@@ -85,7 +86,64 @@ def mean_cycle(tr: PoseTrack):
     Typical stroke cycle for one view: (N_BINS, 15, 2) in pixels relative to the shoulder
     midpoint, horizontal axis = forward (side) or lateral, +swimmer's left (head-on).
     Also returns the cycle count and the side view's torso length in pixels.
+
+    A side clip with a turn in it (down and back) is averaged pass by pass, then the
+    passes are lined up and combined, each arm and leg taken from the passes where it
+    faced the camera.
     """
+    if tr.view == SIDE:
+        ps = P.split(tr)
+        if not ps:
+            return None, 0, None
+        if len(ps) > 1:
+            return _combine_passes(ps)
+    return _single_mean_cycle(tr)
+
+
+def _shift_to(ref, other):
+    """Circular shift (bins) that best lines `other`'s cycle up with `ref`'s, by mean
+    squared distance over every joint both have. Each pass's cycles start at its own
+    near arm's pull, so a pass seen from the other side is about half a cycle out."""
+    best, best_err = 0, np.inf
+    for d in range(N_BINS):
+        diff = ref - np.roll(other, -d, axis=0)
+        ok = ~np.isnan(diff).any(axis=-1)
+        if ok.sum() < 0.3 * ok.size:
+            continue
+        err = float((diff[ok] ** 2).sum(-1).mean())
+        if err < best_err:
+            best, best_err = d, err
+    return best
+
+
+def _combine_passes(ps):
+    means = []
+    for p in ps:
+        med, n, torso = _single_mean_cycle(p.track)
+        if med is not None:
+            means.append((p, med, n, torso))
+    if not means:
+        return None, 0, None
+    if len(means) == 1:
+        return means[0][1:]
+    ref = max(means, key=lambda m: m[2])[1]
+    aligned = [(p, np.roll(med, -_shift_to(ref, med), axis=0)) for p, med, _, _ in means]
+    stack = np.stack([a for _, a in aligned])                       # (passes, N_BINS, 15, 2)
+    out = np.full(ref.shape, np.nan)
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        for k, name in enumerate(KEYPOINTS):
+            use = [i for i, (p, _) in enumerate(aligned)
+                   if name[:2] not in ("l_", "r_") or p.near == name[0]]
+            if not use or np.isnan(stack[use, :, k, 0]).all():
+                use = list(range(len(aligned)))                      # that side was never near
+            out[:, k] = np.nanmedian(stack[use, :, k], axis=0)
+        torsos = [t for *_, t in means if t and not math.isnan(t)]
+    return out, sum(m[2] for m in means), (float(np.median(torsos)) if torsos else None)
+
+
+def _single_mean_cycle(tr: PoseTrack):
     ctx = M.Context(tr)
     if len(ctx.cycles) == 0:
         return None, 0, None
