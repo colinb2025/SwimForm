@@ -8,16 +8,20 @@ and fine-tune from it.
 The val split is held out BY CLIP, not by frame: frames from one clip are near
 duplicates, so a frame-level split reports a score you will not reproduce on a
 new swimmer.
+
+Keypoints follow swimform.schema (15 points, kpt_shape [15, 3]). Labels are matched by
+name, so a project that spells them differently ("left_shoulder", "neck") still
+converts; anything that isn't one of the 15 points is reported and skipped.
 """
 import argparse, json, os, shutil, random, re
-from collections import defaultdict
+from collections import Counter, defaultdict
 
-COCO = ["nose","l_eye","r_eye","l_ear","r_ear","l_shoulder","r_shoulder","l_elbow","r_elbow",
-        "l_wrist","r_wrist","l_hip","r_hip","l_knee","r_knee","l_ankle","r_ankle"]
-IDX = {k: i for i, k in enumerate(COCO)}
+from ..schema import FLIP_IDX, KEYPOINTS, NUM_KEYPOINTS
+from .config import canonical
 
-def parse(export):
-    """-> {image_filename: {"w":, "h":, "kp": {name: (x_px, y_px, vis)}, "usable": bool}}"""
+def parse(export, unknown=None):
+    """-> {image_filename: {"w":, "h":, "kp": {name: (x_px, y_px, vis)}, "usable": bool}}
+    unknown: optional Counter, filled with label names that aren't schema points."""
     out = {}
     for t in export:
         anns = t.get("annotations") or []
@@ -34,13 +38,17 @@ def parse(export):
         for r in anns[0].get("result", []):
             if r.get("type") != "keypointlabels": continue
             v = r["value"]; rec["w"] = r["original_width"]; rec["h"] = r["original_height"]
-            name = v["keypointlabels"][0]
+            name = canonical(v["keypointlabels"][0])
+            if name is None:
+                if unknown is not None:
+                    unknown[v["keypointlabels"][0]] += 1
+                continue
             vis = 1 if vis_by_id.get(r.get("id")) == "occluded" else 2
             rec["kp"][name] = (v["x"]/100*rec["w"], v["y"]/100*rec["h"], vis)
         if rec["kp"] and rec["usable"]: out[fn] = rec
     return out
 
-def main():
+def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--export", required=True)
     ap.add_argument("--images", required=True)
@@ -48,9 +56,15 @@ def main():
     ap.add_argument("--val-frac", type=float, default=0.25, help="fraction of CLIPS held out")
     ap.add_argument("--pad", type=float, default=0.08, help="box padding as a fraction of size")
     ap.add_argument("--seed", type=int, default=0)
-    a = ap.parse_args()
+    a = ap.parse_args(argv)
 
-    recs = parse(json.load(open(a.export)))
+    unknown = Counter()
+    recs = parse(json.load(open(a.export)), unknown)
+    if unknown:
+        print("  ! skipped labels that aren't schema points (fix the names in schema.py or "
+              "labeling/config.py ALIASES): " + ", ".join(f"{k} x{n}" for k, n in unknown.most_common()))
+    if not recs:
+        raise SystemExit("no usable labeled frames in the export")
     by_clip = defaultdict(list)
     for fn in recs: by_clip[fn.split("__f")[0]].append(fn)
     clips = sorted(by_clip)
@@ -74,7 +88,7 @@ def main():
         bw = min(1.0, (bw*(1+2*a.pad))/W); bh = min(1.0, (bh*(1+2*a.pad))/H)
         if bw <= 0 or bh <= 0: continue
         row = [f"0 {cx:.6f} {cy:.6f} {bw:.6f} {bh:.6f}"]
-        for k in COCO:
+        for k in KEYPOINTS:
             if k in r["kp"]:
                 x, y, v = r["kp"][k]; row.append(f"{x/W:.6f} {y/H:.6f} {v}")
             else:
@@ -84,8 +98,9 @@ def main():
         kept[split] += 1
 
     yaml = (f"path: {os.path.abspath(a.out)}\ntrain: images/train\nval: images/val\n"
-            f"kpt_shape: [17, 3]\n"
-            f"flip_idx: [0, 2, 1, 4, 3, 6, 5, 8, 7, 10, 9, 12, 11, 14, 13, 16, 15]\n"
+            f"kpt_shape: [{NUM_KEYPOINTS}, 3]\n"
+            f"flip_idx: {list(FLIP_IDX)}\n"
+            f"# keypoint order (swimform.schema): {', '.join(KEYPOINTS)}\n"
             f"names:\n  0: swimmer\n")
     open(os.path.join(a.out, "data.yaml"), "w").write(yaml)
     print(f"train {kept['train']}  val {kept['val']}  -> {a.out}/data.yaml")

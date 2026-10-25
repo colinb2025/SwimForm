@@ -1,23 +1,21 @@
 <View>
-  <Header value="Place a point on each joint you can see. Use the Visibility box per point."/>
+  <Header value="Mark the near-lane swimmer only. Top of head = crown, not the face. Neck = base of the neck between the shoulders (the bump at the top of the spine). Waist = low back, midway between the hips. Left/right are the SWIMMER'S, not the screen's. Warm colours = left, cool = right. Leave out any joint you would be guessing; mark underwater or splash-hidden ones 'occluded'." size="6"/>
   <KeyPointLabels name="kp" toName="img" strokeWidth="3" opacity="0.9">
-    <Label value="nose" background="#e6194b"/>
-    <Label value="l_eye" background="#3cb44b"/>
-    <Label value="r_eye" background="#ffe119"/>
-    <Label value="l_ear" background="#4363d8"/>
-    <Label value="r_ear" background="#f58231"/>
-    <Label value="l_shoulder" background="#911eb4"/>
-    <Label value="r_shoulder" background="#46f0f0"/>
-    <Label value="l_elbow" background="#f032e6"/>
-    <Label value="r_elbow" background="#bcf60c"/>
-    <Label value="l_wrist" background="#fabebe"/>
-    <Label value="r_wrist" background="#008080"/>
-    <Label value="l_hip" background="#e6beff"/>
-    <Label value="r_hip" background="#9a6324"/>
-    <Label value="l_knee" background="#fffac8"/>
-    <Label value="r_knee" background="#800000"/>
-    <Label value="l_ankle" background="#aaffc3"/>
-    <Label value="r_ankle" background="#808000"/>
+    <Label value="top_of_head" background="#ffffff" hotkey="1"/>
+    <Label value="spine_at_neck" background="#d0d0d0" hotkey="2"/>
+    <Label value="spine_at_waist" background="#909090" hotkey="3"/>
+    <Label value="l_shoulder" background="#e6194b" hotkey="4"/>
+    <Label value="r_shoulder" background="#4363d8" hotkey="5"/>
+    <Label value="l_elbow" background="#f58231" hotkey="6"/>
+    <Label value="r_elbow" background="#46f0f0" hotkey="7"/>
+    <Label value="l_wrist" background="#ffe119" hotkey="8"/>
+    <Label value="r_wrist" background="#3cb44b" hotkey="9"/>
+    <Label value="l_hip" background="#f032e6" hotkey="0"/>
+    <Label value="r_hip" background="#911eb4" hotkey="q"/>
+    <Label value="l_knee" background="#fabebe" hotkey="w"/>
+    <Label value="r_knee" background="#aaffc3" hotkey="e"/>
+    <Label value="l_ankle" background="#9a6324" hotkey="r"/>
+    <Label value="r_ankle" background="#008080" hotkey="t"/>
   </KeyPointLabels>
   <Choices name="vis" toName="img" perRegion="true" required="true">
     <Choice value="visible"/>

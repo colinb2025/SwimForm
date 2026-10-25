@@ -229,6 +229,7 @@ src/swimform/
   viewcheck.py         is this clip the right angle, with enough swimmer and strokes?
   synthetic.py         synthetic swimmers with injectable faults
 app/                   web app: accounts, upload, clip checks, reports (FastAPI + Jinja)
+  labeling/config.py   15-point Label Studio config and name matching, from schema.py
   labeling/prep.py     pick frames worth labeling, pre-fill model guesses
   labeling/convert.py  Label Studio export -> YOLO-pose dataset
 rules/swim_rules.xlsx  metric, fault and drill definitions
@@ -258,9 +259,12 @@ large, and nothing in it is personal data.
   `breath_timing` moved from `side` to `head_on`, since head rotation is not visible from
   the side without face points; `recovery_elbow_angle` moved to `both` (3D); and `both`
   was added to the workbook's list of views.
-- **`pose.py`, `labeling/prep.py` and `labeling/convert.py` are still COCO-17** in this
-  branch. `PoseTrack` loads COCO files by name (face points dropped, spine points missing),
-  so nothing breaks; the labeling tools should import `schema.KEYPOINTS` and `FLIP_IDX`.
+- **The labeling loop is on the 15-point schema.** `labeling/config.py` generates the
+  Label Studio config from `schema.py`; `prep.py` pre-fills from the stock COCO-17 model
+  (limb points, spine at the shoulder/hip midpoints) or from our 15-point weights;
+  `convert.py` writes `kpt_shape [15, 3]` with the schema's flip index and accepts other
+  spellings of the names; `pose.py` names points from the model's own output. The app's
+  `yolo` provider refuses weights that aren't 15-point.
 
 - **`max` aggregates are the most fragile on real footage.** `breath_head_lift` and
   `kick_width` take the worst cycle, so one misread cycle can flag a fault. They pass on

@@ -24,7 +24,7 @@ import numpy as np
 from swimform import rules as R
 from swimform.analyze import DEFAULT_RULES, analyze
 from swimform.posedata import PoseTrack
-from swimform.schema import HEAD_ON, SIDE
+from swimform.schema import HEAD_ON, KEYPOINTS, SIDE
 from swimform.viewcheck import check_clip
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -91,7 +91,10 @@ def pose_yolo(paths, names):
     tracks = {}
     for slot in SLOTS:
         with tempfile.TemporaryDirectory() as out:
-            harness.analyze(str(paths[slot]), model, out)
+            summary = harness.analyze(str(paths[slot]), model, out)
+            if summary.get("keypoints") not in (None, list(KEYPOINTS)):
+                raise RuntimeError("SWIMFORM_WEIGHTS is not a 15-point SwimForm model (it predicts "
+                                   f"{len(summary['keypoints'])} points); use the fine-tuned weights")
             stem = Path(paths[slot]).stem
             tracks[slot] = PoseTrack.from_json(os.path.join(out, f"{stem}_pose.json"), view=slot)
     return tracks

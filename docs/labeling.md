@@ -3,6 +3,51 @@
 Model guesses, you correct, model retrains on your corrections, guesses get better.
 Round 1 is mostly manual; by round 3 you are mostly nudging points a few pixels.
 
+Everything here uses the 15-point schema in `src/swimform/schema.py`. The Label Studio
+config (`labeling/labeling_config.xml`) is generated from it
+(`python -m swimform.labeling.config > labeling/labeling_config.xml`), so names and order
+can't drift. Label names are matched by meaning, so a project that already uses
+`left_shoulder` or `neck` still converts.
+
+## Round 0 → round 1: starting from the stock model
+
+There are no 15-point weights yet, so round 1's guesses come from the stock COCO-17
+model. Its twelve limb points pre-fill directly; the neck and waist start at the
+shoulder and hip midpoints (nudge them onto the spine); the top of the head starts
+empty (the stock model only knows the face).
+
+    python -m swimform.pose pose_out_r0 yolo11m-pose.pt clips/*.mp4
+    python -m swimform.labeling.prep --videos clips/ --pose pose_out_r0 --out round1 --per-clip 30 \
+        --model-version round0-coco
+
+From round 2 on, run `swimform.pose` with your own `best.pt`: it detects the 15-point
+model and writes every point.
+
+## What clips to collect
+
+Swimmer variety beats frame count. For round 1, aim for **8–10 different swimmers**,
+each with:
+
+- a side clip of a 50 (down and back, camera on one deck): both arms get a near view;
+- a head-on clip from the end wall;
+- deck-level where that's all you have; underwater side clips where you can (they are
+  the only way to label the catch).
+
+Name clips `<swimmer>_<view>_<n>.mp4` (e.g. `jen_side_1.mp4`). The val split holds out
+whole clips, so frames from one swim never land on both sides of the split.
+
+## The three spine points
+
+- **top_of_head**: the crown, the highest point of the skull along the body line. Not
+  the face, the forehead or the cap's logo.
+- **spine_at_neck**: the base of the neck, between the shoulders (the bony bump at the
+  top of the spine, C7). From the side it sits just behind the near shoulder.
+- **spine_at_waist**: the low back, midway between the hips, on the spine.
+
+Left and right are always the swimmer's own, never the screen's. In the config, left
+points are warm colours and right points cool, so a swap stands out. Hotkeys 1–0 and
+q–t select the points in schema order.
+
 ## One-time setup (Windows, 3070 Ti)
 
     pip install label-studio ultralytics
@@ -54,7 +99,7 @@ Keep every round's labels. Round N+1's dataset is all rounds combined, not just 
 
 ## Frame budget
 
-Round 1: ~120 frames here. Enough to see movement, not enough to ship.
+Round 1: ~250 frames (8–10 swimmers x 30). Enough to see movement, not enough to ship.
 Realistic target is 300-500 frames across 10+ different swimmers, pools, and lighting.
 Frames from one clip are near duplicates, so swimmer variety counts far more than frame count.
 
