@@ -10,6 +10,9 @@ The pose step is pluggable (SWIMFORM_POSE):
              "deck" simulates a deck-level camera, and the side clip swims a 50 (down
              and back) unless its name contains "oneway".
   yolo       runs swimform.pose with the weights in SWIMFORM_WEIGHTS.
+  collect    no analysis yet: clips are checked for type and size, stored, and the
+             analysis waits (status "waiting") until an admin re-runs it with a real
+             model. For gathering beta footage before the model is ready.
 """
 import hashlib
 import json
@@ -26,6 +29,8 @@ from swimform.analyze import DEFAULT_RULES, analyze
 from swimform.posedata import PoseTrack
 from swimform.schema import HEAD_ON, KEYPOINTS, SIDE
 from swimform.viewcheck import check_clip
+
+from . import storage
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = Path(os.environ.get("SWIMFORM_DATA", ROOT / "data"))
@@ -136,7 +141,7 @@ def _write(folder, files):
             while chunk := fobj.read(1 << 20):
                 size += len(chunk)
                 if size > MAX_BYTES:
-                    raise UploadProblem({slot: ["This clip is over 500 MB. Trim it to 15–30 seconds of swimming."]})
+                    raise UploadProblem({slot: ["This clip is over 500 MB. Trim it to one 50 of swimming."]})
                 out.write(chunk)
         if size == 0:
             raise UploadProblem({slot: ["This file is empty."]})
@@ -161,10 +166,12 @@ def queue(files, provider=None):
 def process(aid, rules_path=DEFAULT_RULES):
     """Pose -> clip check -> analysis -> report.json. Slow: runs in a background job.
     Raises UploadProblem with per-slot fixes when a clip fails its check."""
-    with open(folder(aid) / "upload.json") as f:
-        up = json.load(f)
+    up = upload_info(aid)
     paths = {slot: folder(aid) / name for slot, name in up["paths"].items()}
     names, provider = up["files"], up["provider"]
+    for slot, path in paths.items():   # a re-run after the clips moved to cloud storage
+        if storage.fetch(folder(aid), aid, path.name) is None:
+            raise RuntimeError(f"the {slot} clip is no longer stored")
     tracks = PROVIDERS[provider](paths, names)
     checks = {slot: check_clip(tracks[slot], slot) for slot in SLOTS}
     problems = {slot: c["problems"] for slot, c in checks.items() if not c["ok"]}
@@ -181,6 +188,22 @@ def process(aid, rules_path=DEFAULT_RULES):
     return record
 
 
+def upload_info(aid):
+    """What was uploaded and how it should be processed, or None if that's gone."""
+    path = storage.fetch(folder(aid), aid, "upload.json")
+    if path is None:
+        return None
+    with open(path) as f:
+        return json.load(f)
+
+
+def set_provider(aid, provider):
+    up = upload_info(aid)
+    up["provider"] = provider
+    with open(folder(aid) / "upload.json", "w") as f:
+        json.dump(up, f)
+
+
 def run(files, provider=None, rules_path=DEFAULT_RULES):
     """Upload-to-report in one go (scripts and tests)."""
     aid = queue(files, provider)
@@ -193,13 +216,18 @@ def remove(aid):
     import shutil
     if aid.isalnum():
         shutil.rmtree(folder(aid), ignore_errors=True)
+        try:
+            storage.remove(aid)
+        except Exception:   # noqa: BLE001 - deleting the account must not fail on a storage hiccup
+            import logging
+            logging.getLogger("swimform.storage").exception("could not remove %s from storage", aid)
 
 
 def load(aid):
     if not aid.isalnum():
         return None
-    path = DATA / "analyses" / aid / "report.json"
-    if not path.exists():
+    path = storage.fetch(folder(aid), aid, "report.json")
+    if path is None:
         return None
     with open(path) as f:
         return json.load(f)

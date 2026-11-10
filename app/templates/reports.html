@@ -18,6 +18,8 @@
         <time class="report-date" datetime="{{ it.iso }}" data-local="datetime">{{ it.date }}</time>
         <span class="report-sum" style="display:block">
           {% if it.status in ("queued", "running") %}<span class="pill pill-unchecked" style="margin-left:0">Measuring…</span>
+          {% elif it.status == "waiting" %}<span class="pill pill-unchecked" style="margin-left:0">Clips received · report coming</span>
+          {% elif it.status == "review" %}<span class="pill pill-unchecked" style="margin-left:0">Being checked</span>
           {% elif it.status == "rejected" %}<span class="pill pill-estimated" style="margin-left:0">Clips need re-filming</span>
           {% elif it.status == "failed" %}<span class="pill pill-flagged" style="margin-left:0">Didn't finish</span>
           {% elif it.flagged %}{{ it.flagged }} to work on{% elif not it.estimated %}Nothing flagged{% endif %}{% if it.estimated %}{% if it.flagged %} · {% endif %}{{ it.estimated }} estimated{% endif %}{% if it.unchecked %} · {{ it.unchecked }} not checked{% endif %}
@@ -32,7 +34,7 @@
 {% else %}
 <div class="card empty">
   <h2>No reports yet</h2>
-  <p>Film a side view and a head-on view of your freestyle, 15–30 seconds each, and we'll take it from there.</p>
+  <p>Film a 50 of your freestyle from the side and one length head-on, and we'll take it from there.</p>
   <div class="page-actions" style="justify-content:center;margin-top:0">
     <a class="btn btn-primary" href="/analyses/new">Start your first analysis</a>
     <a class="btn btn-secondary" href="/guide">How to film</a>

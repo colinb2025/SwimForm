@@ -27,6 +27,7 @@ from urllib.parse import urlencode
 from sqlalchemy import delete, select
 
 from . import db
+from . import beta
 
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -51,13 +52,13 @@ def _b64url(raw: bytes) -> str:
     return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
 
 
-def start(request, next_url: str = "/") -> str:
+def start(request, next_url: str = "/", invite: str = "") -> str:
     """Record a pending sign-in and return the Google URL to send the browser to."""
     state, nonce, verifier = secrets.token_urlsafe(24), secrets.token_urlsafe(24), secrets.token_urlsafe(48)
     with db.session() as s:
         cutoff = db.now() - timedelta(minutes=STATE_MINUTES)
         s.execute(delete(db.OAuthState).where(db.OAuthState.created < cutoff))   # tidy abandoned attempts
-        s.add(db.OAuthState(state=state, nonce=nonce, verifier=verifier, next_url=next_url))
+        s.add(db.OAuthState(state=state, nonce=nonce, verifier=verifier, next_url=next_url, invite=invite))
         s.commit()
     challenge = _b64url(hashlib.sha256(verifier.encode()).digest())
     return AUTH_URL + "?" + urlencode({
@@ -124,7 +125,14 @@ def finish(request, state: str, code: str):
                 # Same verified email as an existing account: link Google to it.
                 user.google_sub = sub
             else:
-                user = db.User(email=email, name=(c.get("name") or "")[:120], password_hash="", google_sub=sub)
+                # A brand-new account: the same door as the sign-up form.
+                if problem := beta.gate(email, pending.invite):
+                    raise GoogleSignInError(problem)
+                if not beta.redeem(s, pending.invite):
+                    s.rollback()
+                    raise GoogleSignInError("That invite code has already been used.")
+                user = db.User(email=email, name=(c.get("name") or "")[:120], password_hash="", google_sub=sub,
+                               terms_accepted=db.now(), invite_code=beta.normalise(pending.invite) or None)
                 s.add(user)
         s.commit()
         return user, pending.next_url

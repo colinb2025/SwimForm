@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "_macros.html" import band %}
+{% block title %}{{ "Clips received" if status == "waiting" else "Being checked" }} · SwimForm{% endblock %}
+{% block band %}
+{% if status == "waiting" %}
+{{ band("Clips received", "Thanks. You don't need to do anything else.") }}
+{% else %}
+{{ band("Your report is being checked", "A coach looks over every report before it's released during the beta.") }}
+{% endif %}
+{% endblock %}
+{% block content %}
+{% include "_admin_bar.html" %}
+<section class="card">
+  {% if status == "waiting" %}
+  <h2>We're still finishing the analysis</h2>
+  <p class="muted" style="margin-top:8px">SwimForm is in early beta and the stroke model is being trained on real swimmers right now.
+    Your clips are saved. As soon as the model is ready we'll analyse them and email you your report: no need to upload again.</p>
+  {% else %}
+  <h2>Almost there</h2>
+  <p class="muted" style="margin-top:8px">The analysis is done. We'll email you as soon as it's been checked and released, usually within a day.</p>
+  {% endif %}
+</section>
+<div class="page-actions">
+  <a class="btn btn-secondary" href="/">Your reports</a>
+  <a class="btn btn-secondary" href="/guide">Filming guide</a>
+</div>
+{% endblock %}

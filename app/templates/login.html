@@ -40,7 +40,8 @@
         </div>
         <button type="submit" class="btn btn-primary btn-block">Log in</button>
       </form>
-      <p class="switch">New here? <a href="/signup">Create an account</a></p>
+      <p class="switch">New here? <a href="/signup">Create an account</a>{% if signup_mode != "open" %} or <a href="/waitlist">join the waitlist</a>{% endif %}</p>
+      <p class="legal-line"><a href="/terms">Terms</a> · <a href="/privacy">Privacy</a></p>
     </div>
   </main>
 </div>

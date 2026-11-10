@@ -6,7 +6,7 @@ Anything that could lock the owner out or erase their data asks for the current 
 """
 from sqlalchemy import delete, select
 
-from . import auth, db, mailer, pipeline
+from . import auth, billing, db, mailer, pipeline
 
 # Separate from the login limiter: wrong current-password guesses on the settings page.
 limiter = auth.LoginLimiter(max_failures=5, window_s=900)
@@ -30,6 +30,12 @@ def update_name(user, name):
     with db.session() as s:
         u = s.get(db.User, user.id)
         u.name = name.strip()[:120]
+        s.commit()
+
+
+def set_train_consent(user, yes):
+    with db.session() as s:
+        s.get(db.User, user.id).train_consent = bool(yes)
         s.commit()
 
 
@@ -85,9 +91,10 @@ def delete_account(user, confirm, password):
         return f'Type "{CONFIRM_WORD}" to confirm.'
     if problem := _password_ok(user, password, f"acct:{user.id}"):
         return problem
+    billing.cancel(user)   # stop charging before the record of who to stop charging is gone
     with db.session() as s:
         aids = list(s.scalars(select(db.Analysis.id).where(db.Analysis.user_id == user.id)))
-        for table in (db.Analysis, db.LoginSession, db.PasswordReset):
+        for table in (db.Feedback, db.Analysis, db.LoginSession, db.PasswordReset):
             s.execute(delete(table).where(table.user_id == user.id))   # explicit: SQLite skips ON DELETE
         s.execute(delete(db.User).where(db.User.id == user.id))
         s.commit()

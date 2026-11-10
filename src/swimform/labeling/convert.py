@@ -51,7 +51,8 @@ def parse(export, unknown=None):
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--export", required=True)
-    ap.add_argument("--images", required=True)
+    ap.add_argument("--images", required=True, nargs="+",
+                    help="folder(s) of the labeled frames: every round's images folder")
     ap.add_argument("--out", required=True)
     ap.add_argument("--val-frac", type=float, default=0.25, help="fraction of CLIPS held out")
     ap.add_argument("--pad", type=float, default=0.08, help="box padding as a fraction of size")
@@ -78,6 +79,7 @@ def main(argv=None):
         os.makedirs(os.path.join(a.out, "labels", split), exist_ok=True)
 
     kept = {"train": 0, "val": 0}
+    missing = []
     for fn, r in recs.items():
         split = "val" if fn.split("__f")[0] in val_clips else "train"
         W, H = r["w"], r["h"]
@@ -93,7 +95,11 @@ def main(argv=None):
                 x, y, v = r["kp"][k]; row.append(f"{x/W:.6f} {y/H:.6f} {v}")
             else:
                 row.append("0.000000 0.000000 0")
-        shutil.copy(os.path.join(a.images, fn), os.path.join(a.out, "images", split, fn))
+        src = next((os.path.join(d, fn) for d in a.images if os.path.exists(os.path.join(d, fn))), None)
+        if src is None:
+            missing.append(fn)
+            continue
+        shutil.copy(src, os.path.join(a.out, "images", split, fn))
         open(os.path.join(a.out, "labels", split, os.path.splitext(fn)[0]+".txt"), "w").write(" ".join(row)+"\n")
         kept[split] += 1
 
@@ -103,6 +109,9 @@ def main(argv=None):
             f"# keypoint order (swimform.schema): {', '.join(KEYPOINTS)}\n"
             f"names:\n  0: swimmer\n")
     open(os.path.join(a.out, "data.yaml"), "w").write(yaml)
+    if missing:
+        print(f"  ! {len(missing)} labeled frames skipped: image not found in {', '.join(a.images)} "
+              f"(e.g. {missing[0]}). Pass every round's images folder to --images.")
     print(f"train {kept['train']}  val {kept['val']}  -> {a.out}/data.yaml")
     print("\nnext:\n  yolo pose train data=%s/data.yaml model=yolo11m-pose.pt epochs=100 imgsz=960 "
           "batch=8 patience=25" % a.out)

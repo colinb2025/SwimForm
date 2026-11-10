@@ -25,6 +25,10 @@ app = ["fastapi>=0.110", "jinja2>=3.1", "python-multipart>=0.0.9", "uvicorn>=0.2
 postgres = ["psycopg[binary]>=3.1"]
 # Only for SWIMFORM_EMAIL=ses (Amazon SES).
 ses = ["boto3>=1.34"]
+# Only for SWIMFORM_STORAGE=s3 (S3, Cloudflare R2, Backblaze B2).
+s3 = ["boto3>=1.34"]
+# Only when SENTRY_DSN is set.
+sentry = ["sentry-sdk>=2.0"]
 dev = ["pytest>=7", "httpx>=0.27"]
 
 [tool.setuptools.packages.find]

@@ -33,6 +33,8 @@
             <div class="who">{% if user.name %}<b>{{ user.name }}</b>{% endif %}<span>{{ user.email }}</span></div>
             <a class="menu-item" href="/">Your reports</a>
             <a class="menu-item" href="/account">Account settings</a>
+            {% if billing_enabled %}<a class="menu-item" href="/billing">Plan</a>{% endif %}
+            {% if is_admin %}<a class="menu-item" href="/admin">Beta console</a>{% endif %}
             <form action="/logout" method="post"><button type="submit" class="menu-item">Log out</button></form>
           </div>
         </details>
@@ -56,6 +58,7 @@
   <main class="page {% block page_class %}{% endblock %}">
     {% block content %}{% endblock %}
   </main>
+  {% include "_footer.html" %}
 {% endblock %}
   <script>
     /* Show stored UTC times in the reader's own time zone. */

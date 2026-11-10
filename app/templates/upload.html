@@ -2,11 +2,24 @@
 {% from "_macros.html" import band, mini_diagram, upload_icon %}
 {% block title %}New analysis · SwimForm{% endblock %}
 {% block band %}
-{% call band("New analysis", "Two clips of steady freestyle, 15–30 seconds each, no turns. We check every clip before analysing it, so a wrong angle gets caught, not graded.") %}
+{% call band("New analysis", "Two clips of steady freestyle: a 50 from the side and one length head-on. We check every clip before analysing it, so a wrong angle gets caught, not graded.") %}
   <a class="btn btn-on-band" href="/guide">Filming guide</a>
 {% endcall %}
 {% endblock %}
 {% block content %}
+{% if not plan.can_analyse %}
+<section class="card limit-card">
+  <h2>You've used this month's {{ plan.limit }} free {{ "analysis" if plan.limit == 1 else "analyses" }}</h2>
+  <p class="muted">{% if plan.can_upgrade %}Upgrade for unlimited analyses, or come back next month.{% else %}Your allowance resets on the 1st of next month.{% endif %}</p>
+  <div class="page-actions" style="margin-top:14px">
+    {% if plan.can_upgrade %}<a class="btn btn-primary" href="/billing">See the plan</a>{% endif %}
+    <a class="btn btn-secondary" href="/">Your reports</a>
+  </div>
+</section>
+{% else %}
+{% if collecting %}
+<div class="notice" role="note" style="margin-bottom:20px"><p><b>Early beta:</b> the stroke model is still being trained. Upload your clips now and we'll email your report as soon as it's ready. You won't need to upload again.</p></div>
+{% endif %}
 <form action="/analyses" method="post" enctype="multipart/form-data" id="upload-form">
   <h2 class="visually-hidden">Where to put the two cameras</h2>
   <div class="upload-grid">
@@ -50,15 +63,21 @@
     {% endfor %}
   </div>
 
+  <label class="consent">
+    <input type="checkbox" name="train_ok" value="1" {% if train_consent %}checked{% endif %}>
+    <span><b>Help improve SwimForm.</b> Let us use these clips to train and test the stroke model. Optional, and only our team sees them. <a href="/privacy">How this works</a></span>
+  </label>
+
   <div class="submit-bar">
-    <p class="hint">Analysis takes about a minute. Your clips are private to your account.</p>
-    <button type="submit" class="btn btn-primary btn-lg">Analyse my stroke</button>
+    <p class="hint">{% if collecting %}Your clips are private to your account.{% else %}Analysis takes about a minute. Your clips are private to your account.{% endif %}{% if plan.limit is not none %} {{ plan.left }} of {{ plan.limit }} free {{ "analysis" if plan.limit == 1 else "analyses" }} left this month.{% endif %}</p>
+    <button type="submit" class="btn btn-primary btn-lg">{{ "Send my clips" if collecting else "Analyse my stroke" }}</button>
     <div class="progress" role="status" aria-live="polite" hidden>
       <div class="bar"><span></span></div>
       <p class="progress-label"></p>
     </div>
   </div>
 </form>
+{% endif %}
 {% endblock %}
 {% block scripts %}
 <script src="/static/upload.js" defer></script>

@@ -16,7 +16,7 @@ WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY src ./src
 # Editable install: the package finds rules/ relative to the source tree.
-RUN pip install -e ".[app,postgres,ses]" && if [ "$POSE" = "1" ]; then pip install -e ".[pose]"; fi
+RUN pip install -e ".[app,postgres,ses,s3,sentry]" && if [ "$POSE" = "1" ]; then pip install -e ".[pose]"; fi
 COPY rules ./rules
 COPY app ./app
 

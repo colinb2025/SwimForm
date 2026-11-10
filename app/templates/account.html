@@ -23,6 +23,22 @@
     </form>
   </section>
 
+  {% if billing_enabled %}
+  <section class="card setting" aria-labelledby="s-plan">
+    <div class="setting-text"><h2 id="s-plan">Plan</h2><p>{{ "SwimForm Pro: unlimited analyses." if plan.pro else "Free plan." }}{% if plan.limit is not none %} {{ plan.used }} of {{ plan.limit }} analyses used this month.{% endif %}</p></div>
+    <div><a class="btn btn-secondary" href="/billing">{{ "Manage plan" if plan.pro else "See plan options" }}</a></div>
+  </section>
+  {% endif %}
+
+  <section class="card setting" aria-labelledby="s-consent">
+    <div class="setting-text"><h2 id="s-consent">Improving SwimForm</h2><p>Whether the "use these clips to improve the model" box starts ticked when you upload. You can still change it for each upload. <a href="/privacy">How this works</a></p></div>
+    <form action="/account/consent" method="post" class="stack">
+      <label class="consent" style="margin:0"><input type="checkbox" name="train_consent" value="1" {% if user.train_consent %}checked{% endif %}>
+        <span>Start with the box ticked</span></label>
+      <div><button type="submit" class="btn btn-secondary">Save</button></div>
+    </form>
+  </section>
+
   <section class="card setting" aria-labelledby="s-email">
     <div class="setting-text"><h2 id="s-email">Email</h2><p>Where password resets go. We'll let your old address know it changed.</p></div>
     <form action="/account/email" method="post" class="stack" novalidate>

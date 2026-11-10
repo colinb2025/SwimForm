@@ -1,0 +1,37 @@
+{% extends "admin/_layout.html" %}
+{% block admin %}
+<section class="card" aria-labelledby="agree-h">
+  <div class="section-head"><h2 id="agree-h">Do swimmers agree with each finding?</h2>
+    <p>{% if rating is not none %}Average report rating {{ rating }}/5 from {{ n_ratings }}.{% else %}No report ratings yet.{% endif %} <a href="/admin/feedback.csv">Download everything as CSV</a></p></div>
+  {% if table %}
+  <div class="table-wrap"><table class="admin-table">
+    <thead><tr><th scope="col">Finding</th><th scope="col">Agreed</th><th scope="col">Yes</th><th scope="col">No</th><th scope="col">Not sure</th></tr></thead>
+    <tbody>
+      {% for t in table %}
+      <tr><th scope="row">{{ t.name }}</th><td data-label="Agreed">{% if t.agree_pct is not none %}{{ t.agree_pct }}%{% else %}—{% endif %}</td>
+        <td data-label="Yes">{{ t.right }}</td><td data-label="No">{{ t.wrong }}</td><td data-label="Not sure">{{ t.unsure }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  <p class="muted small" style="margin-top:12px">Lowest agreement first: those are the findings to check against a coach's eye, and the thresholds to revisit in the workbook.</p>
+  {% else %}
+  <p class="muted">No feedback on findings yet.</p>
+  {% endif %}
+</section>
+
+{% if rows %}
+<section class="card section" aria-labelledby="all-h">
+  <h2 id="all-h">Latest answers</h2>
+  <div class="table-wrap"><table class="admin-table">
+    <thead><tr><th scope="col">When</th><th scope="col">Swimmer</th><th scope="col">About</th><th scope="col">Answer</th><th scope="col">Comment</th><th scope="col"></th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr><td data-label="When"><time datetime="{{ r.iso }}" data-local="date">{{ r.iso[:10] }}</time></td><td data-label="Swimmer">{{ r.email }}</td>
+        <td data-label="About">{{ r.what }}</td><td data-label="Answer">{{ r.verdict or "—" }}{% if not r.issue_id and r.verdict %}/5{% endif %}</td>
+        <td data-label="Comment">{{ r.comment or "—" }}</td><td><a href="/admin/analyses/{{ r.analysis_id }}">Report</a></td></tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endif %}
+{% endblock %}

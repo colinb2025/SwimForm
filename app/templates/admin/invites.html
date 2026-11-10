@@ -1,0 +1,43 @@
+{% extends "admin/_layout.html" %}
+{% block admin %}
+<section class="card" aria-labelledby="inv-h">
+  <div class="section-head"><h2 id="inv-h">Invite codes</h2>
+    <p>Sign-up is <b>{{ mode }}</b>{% if mode == "open" %}: codes aren't needed yet. Set SWIMFORM_SIGNUP=invite to require one.{% else %}.{% endif %}</p></div>
+  <form action="/admin/invites" method="post" class="inline-form">
+    <label class="field"><span>Who it's for</span><input type="text" name="note" maxlength="200" placeholder="e.g. Tri club, Tuesday squad"></label>
+    <label class="field field-narrow"><span>Uses (0 = unlimited)</span><input type="number" name="max_uses" value="1" min="0" max="10000"></label>
+    <button type="submit" class="btn btn-primary">Create code</button>
+  </form>
+  {% if codes %}
+  <div class="table-wrap"><table class="admin-table">
+    <thead><tr><th scope="col">Code</th><th scope="col">For</th><th scope="col">Used</th><th scope="col">Sign-up link</th></tr></thead>
+    <tbody>
+      {% for c in codes %}
+      <tr><td data-label="Code"><code>{{ c.code }}</code></td><td data-label="For">{{ c.note or "—" }}</td>
+        <td data-label="Used">{{ c.uses }}{% if c.max_uses %} of {{ c.max_uses }}{% endif %}</td>
+        <td data-label="Sign-up link"><code>/signup?invite={{ c.code }}</code></td></tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  {% endif %}
+</section>
+
+<section class="card section" aria-labelledby="wl-h">
+  <h2 id="wl-h">Waitlist</h2>
+  {% if waitlist %}
+  <div class="table-wrap"><table class="admin-table">
+    <thead><tr><th scope="col">Joined</th><th scope="col">Email</th><th scope="col">About them</th><th scope="col"></th></tr></thead>
+    <tbody>
+      {% for w in waitlist %}
+      <tr><td data-label="Joined"><time datetime="{{ w.iso }}" data-local="date">{{ w.iso[:10] }}</time></td>
+        <td data-label="Email">{{ w.email }}</td><td data-label="About them">{{ w.note or "—" }}</td>
+        <td>{% if w.invited %}<span class="muted small">Invited</span>{% else %}
+          <form action="/admin/waitlist/{{ w.id }}/invite" method="post"><button type="submit" class="link-button">Email an invite</button></form>{% endif %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}
+  <p class="muted" style="margin-top:8px">Nobody is waiting. The waitlist form is at <code>/waitlist</code>.</p>
+  {% endif %}
+</section>
+{% endblock %}

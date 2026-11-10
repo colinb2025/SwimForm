@@ -6,6 +6,7 @@
 {{ band("Measuring your stroke", "This usually takes about a minute. You can leave this page: the report will be waiting in Your reports.") }}
 {% endblock %}
 {% block content %}
+{% include "_admin_bar.html" %}
 <section class="card job" data-status-url="/analyses/{{ aid }}/status" aria-live="polite">
   <ol class="job-steps">
     <li class="done"><span class="step-dot" aria-hidden="true"></span>Clips uploaded</li>

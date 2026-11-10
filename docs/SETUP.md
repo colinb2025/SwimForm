@@ -99,7 +99,44 @@ Before switching, run the scorecard against your held-out frames and check it pa
 (see [labeling.md](labeling.md#is-the-model-good-enough)).
 Note that ultralytics is AGPL-3.0, so it needs a commercial licence before this is sold as a product.
 
-## 6. Hosting checklist
+## 6. Beta settings
+
+| Setting | What to put |
+|---|---|
+| `SWIMFORM_ADMINS` | Your email. That account sees the **Beta console** at `/admin` (also in the account menu). |
+| `SWIMFORM_SIGNUP=invite` | Sign-up needs a code. Make codes at `/admin/invites`; everyone else lands on the waitlist, and one click emails a waiting person their invite. |
+| `SWIMFORM_POSE=collect` | Until the model is trained: uploads are stored and the swimmer is told the report is coming. When you have weights, switch to `yolo` and press **Run all waiting analyses** in `/admin/analyses`; everyone is emailed their report. |
+| `SWIMFORM_REVIEW=1` | Each finished report waits for you. Open it from `/admin/analyses`, add a note if you like, press **Release**. Turn off once you trust the model. |
+| `SWIMFORM_CONTACT_EMAIL`, `SWIMFORM_COMPANY`, `SWIMFORM_GOVERNING_LAW` | Fill the Terms and Privacy pages. **They are drafts written to match what the code does, not legal advice: have a lawyer read them before you charge money.** |
+
+`python -m app.check` (or the top of `/admin`) lists what is connected and what is still missing.
+
+## 7. Payments (Stripe, about 20 minutes, optional)
+
+Leave the Stripe values blank and everything is free. To charge:
+
+1. Create a Stripe account. Stay in **test mode** until the flow works end to end.
+2. Product catalog → **Add product** → "SwimForm Pro", recurring price. Copy the price ID (`price_...`) → `STRIPE_PRICE_ID`.
+3. Developers → API keys → copy the secret key (`sk_test_...`) → `STRIPE_SECRET_KEY`.
+4. Developers → Webhooks → **Add endpoint**: `https://<your site>/webhooks/stripe`, events
+   `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`.
+   Copy the signing secret (`whsec_...`) → `STRIPE_WEBHOOK_SECRET`.
+5. Settings → Billing → Customer portal → turn it on (this is the "Manage or cancel" page).
+6. Set `SWIMFORM_FREE_ANALYSES` (e.g. `2`) and `SWIMFORM_PRICE_LABEL` (e.g. `$12 a month`).
+7. Test with card `4242 4242 4242 4242`: upgrade from `/billing`, check the account shows Pro, cancel from the portal.
+8. Swap in the live keys (`sk_live_...`, a live price and a live webhook secret).
+
+There is one paid plan (Pro = unlimited) as a placeholder until tiers are decided. You can give any
+account Pro for free from `/admin/users`.
+
+## 8. Clip storage (optional)
+
+Default: clips and reports live in `SWIMFORM_DATA` on the server. That needs a persistent disk.
+On hosts that wipe the disk on each deploy, use a bucket: `SWIMFORM_STORAGE=s3`, `S3_BUCKET`,
+`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, plus `S3_ENDPOINT_URL` for
+Cloudflare R2 or Backblaze B2. Keep the bucket private; the app never hands out bucket links.
+
+## 9. Hosting checklist
 
 - [ ] Serve over HTTPS and set `SWIMFORM_SECURE_COOKIES=1` (the Docker image defaults to 1).
 - [ ] Set `SWIMFORM_BASE_URL` to the public https address.
@@ -122,7 +159,15 @@ Note that ultralytics is AGPL-3.0, so it needs a commercial licence before this 
 | `SWIMFORM_EMAIL` | `console` | `console`, `smtp` or `ses` |
 | `SWIMFORM_EMAIL_FROM` | `SwimForm <no-reply@localhost>` | Sender address |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` | – | For `smtp` |
-| `SWIMFORM_POSE` | `synthetic` | `synthetic` (demo) or `yolo` |
+| `SWIMFORM_POSE` | `synthetic` | `synthetic` (demo), `collect` (store clips, report later) or `yolo` |
+| `SWIMFORM_ADMINS` | – | Emails that can open `/admin` |
+| `SWIMFORM_SIGNUP` | `open` | `open`, `invite` or `closed` |
+| `SWIMFORM_REVIEW` | `0` | `1` = reports wait for an admin's release |
+| `SWIMFORM_FREE_ANALYSES` | no limit | Free analyses per account per month |
+| `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`, `STRIPE_WEBHOOK_SECRET`, `SWIMFORM_PRICE_LABEL` | – | Payments |
+| `SWIMFORM_STORAGE`, `S3_BUCKET`, `S3_ENDPOINT_URL`, `AWS_*` | `local` | Where clips and reports are kept |
+| `SWIMFORM_COMPANY`, `SWIMFORM_CONTACT_EMAIL`, `SWIMFORM_GOVERNING_LAW` | – | Terms and Privacy pages |
+| `SENTRY_DSN` | – | Send crashes to Sentry |
 | `SWIMFORM_WEIGHTS` | – | Model weights for `yolo` |
 | `SWIMFORM_JOBS` | `thread` | `thread` (background) or `inline` (in the request; tests) |
 | `SWIMFORM_WORKERS` | `1` | Analyses that can run at once |

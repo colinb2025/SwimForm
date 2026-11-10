@@ -143,6 +143,7 @@ class LoginLimiter:
 
 limiter = LoginLimiter()
 reset_limiter = LoginLimiter(max_failures=3, window_s=3600)   # reset emails per address per hour
+waitlist_limiter = LoginLimiter(max_failures=10, window_s=3600)  # waitlist sign-ups per visitor per hour
 
 RESET_MINUTES = 60
 

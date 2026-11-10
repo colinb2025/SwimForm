@@ -101,6 +101,12 @@ down-and-back clip catches it and names the arm, across clean, typical and poor 
 
 ## Web app
 
+Beta-ready: invite codes and a waitlist, Terms and Privacy pages, per-upload consent to use
+clips for training, feedback on every finding, an optional coach-review hold, a clip-collection
+mode for before the model exists, Stripe plans, S3-compatible storage, and an admin console at
+`/admin`. Each is switched on by settings: [docs/SETUP.md](docs/SETUP.md) lists the keys,
+[docs/BETA.md](docs/BETA.md) the launch order, and `python -m app.check` says what's missing.
+
 ```bash
 pip install -e ".[app]"
 uvicorn app.main:app --reload        # then open http://127.0.0.1:8000

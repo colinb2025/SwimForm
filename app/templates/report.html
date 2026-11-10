@@ -19,6 +19,13 @@
 {% set advice = {} %}
 {% for u in r.unchecked %}{% set _ = advice.update({u.name: u.advice}) %}{% endfor %}
 
+{% include "_admin_bar.html" %}
+{% if coach_note %}
+<section class="card coach-note" aria-labelledby="coach-h">
+  <h2 id="coach-h">A note from your coach</h2>
+  <p>{{ coach_note }}</p>
+</section>
+{% endif %}
 <section class="card" data-report-id="{{ r.id }}" aria-label="Summary">
   {% if r.synthetic %}
   <div class="notice" role="note" style="margin-bottom:20px"><p>Demo data: this report comes from a simulated swimmer, not from your video. Real analysis switches on when the pose model is connected.</p></div>
@@ -95,6 +102,19 @@
       </div>
     </div>
     {% endif %}
+    {% if not admin_view %}
+    {% set fb = feedback.get(p.id) %}
+    <form class="fb" id="fb-{{ p.id }}" action="/analyses/{{ r.id }}/feedback" method="post">
+      <input type="hidden" name="issue_id" value="{{ p.id }}">
+      <span class="fb-q">Does this match what you or your coach see?</span>
+      <span class="fb-choices">
+        {% for v, label in [("right", "Yes"), ("wrong", "No"), ("unsure", "Not sure")] %}
+        <button type="submit" name="verdict" value="{{ v }}" class="fb-btn{% if fb and fb.verdict == v %} chosen{% endif %}" aria-pressed="{{ 'true' if fb and fb.verdict == v else 'false' }}">{{ label }}</button>
+        {% endfor %}
+      </span>
+      {% if fb %}<span class="fb-thanks" role="status">Thanks, noted.</span>{% endif %}
+    </form>
+    {% endif %}
   </article>
   {% endfor %}
 </section>
@@ -160,6 +180,30 @@
   </table>
   </div>
 </details>
+
+{% if not admin_view %}
+{% set fb = feedback.get("") %}
+<section class="card section fb-overall" id="fb-overall" aria-labelledby="fbo-h">
+  <h2 id="fbo-h">How useful was this report?</h2>
+  <p class="muted">SwimForm is in beta. What you tell us here goes straight into making the analysis better.</p>
+  <form action="/analyses/{{ r.id }}/feedback" method="post" class="stack">
+    <input type="hidden" name="issue_id" value="">
+    <fieldset class="rating">
+      <legend class="visually-hidden">Rating, 1 (not useful) to 5 (very useful)</legend>
+      <span class="rating-end">Not useful</span>
+      {% for n in range(1, 6) %}
+      <label><input type="radio" name="verdict" value="{{ n }}" {% if fb and fb.verdict == n|string %}checked{% endif %}><span>{{ n }}</span></label>
+      {% endfor %}
+      <span class="rating-end">Very useful</span>
+    </fieldset>
+    <label class="field"><span>Anything we got wrong or missed? <span class="optional">(optional)</span></span>
+      <textarea name="comment" rows="3" maxlength="4000">{{ fb.comment if fb else "" }}</textarea>
+    </label>
+    <div><button type="submit" class="btn btn-secondary">{{ "Update feedback" if fb else "Send feedback" }}</button>
+      {% if fb %}<span class="fb-thanks" role="status">Thanks, we've got it.</span>{% endif %}</div>
+  </form>
+</section>
+{% endif %}
 
 <div class="page-actions">
   <a class="btn btn-primary" href="/analyses/new">Analyse another pair of clips</a>

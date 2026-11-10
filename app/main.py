@@ -5,8 +5,11 @@ SwimForm web app.
 
 Public:   GET /login, /signup, /forgot, /reset, /guide, /auth/google/*
           POST /login, /signup, /forgot, /reset
-Account:  GET / -> your reports, /analyses/new, /analyses/{id}, /analyses/{id}/status, /account
-          POST /analyses, /logout, /account/{name,email,password,sessions,delete}
+          /waitlist, /terms, /privacy; POST /webhooks/stripe (signed by Stripe)
+Account:  GET / -> your reports, /analyses/new, /analyses/{id}, /analyses/{id}/status, /account, /billing
+          POST /analyses, /analyses/{id}/feedback, /logout, /billing/{checkout,portal},
+          /account/{name,email,password,consent,sessions,delete}
+Admins:   /admin/... (app/admin.py), for the emails in SWIMFORM_ADMINS
 A report is visible only to the account that made it; anyone else gets "not found".
 """
 import json
@@ -17,28 +20,37 @@ from pathlib import Path
 from fastapi import FastAPI, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 
-from swimform import rules as R
-from swimform.analyze import DEFAULT_RULES
-
-from . import account, auth, db, google, jobs, mailer, pipeline, presenter
+from . import account, admin, auth, beta, billing, db, feedback, google, jobs, mailer, pipeline, presenter
+from .web import base_url, login_redirect, page, rules, safe_next as _safe_next, templates  # noqa: F401
 
 HERE = Path(__file__).resolve().parent
 
 
+def _sentry():
+    """Send crashes to Sentry when SENTRY_DSN is set and sentry-sdk is installed."""
+    dsn = os.environ.get("SENTRY_DSN")
+    if not dsn:
+        return
+    try:
+        import sentry_sdk
+        sentry_sdk.init(dsn=dsn, traces_sample_rate=0.0, send_default_pii=False)
+    except ImportError:
+        import logging
+        logging.getLogger("swimform").warning("SENTRY_DSN is set but sentry-sdk is not installed")
+
+
 @asynccontextmanager
 async def lifespan(_app):
+    _sentry()
     db.init()
     jobs.resume()
     yield
 
 
-app = FastAPI(title="SwimForm", lifespan=lifespan)
+app = FastAPI(title="SwimForm", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
-templates = Jinja2Templates(directory=HERE / "templates")
-
-_rules_cache = {}
+app.include_router(admin.router)
 
 
 def summarise(record):
@@ -51,37 +63,20 @@ def summarise(record):
 jobs.summarise = summarise
 
 
-def rules():
-    if "r" not in _rules_cache:
-        r, errors = R.load(DEFAULT_RULES)
-        if errors:
-            raise RuntimeError("rules workbook invalid: " + "; ".join(errors))
-        _rules_cache["r"] = r
-    return _rules_cache["r"]
-
-
 @app.middleware("http")
 async def protect(request: Request, call_next):
     if request.method not in ("GET", "HEAD", "OPTIONS") and not auth.same_origin(request):
         return HTMLResponse("Request refused: it came from another site.", status_code=403)
     request.state.user = auth.current_user(request)
-    return await call_next(request)
-
-
-def page(request, name, ctx=None, status_code=200):
-    ctx = dict(ctx or {})
-    ctx.setdefault("user", request.state.user)
-    ctx.setdefault("google_enabled", google.configured())
-    return templates.TemplateResponse(request, name, ctx, status_code=status_code)
-
-
-def login_redirect(request):
-    nxt = request.url.path
-    return RedirectResponse(f"/login?next={nxt}" if nxt not in ("/", "") else "/login", status_code=303)
-
-
-def _safe_next(nxt):
-    return nxt if nxt and nxt.startswith("/") and not nxt.startswith("//") else "/"
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "same-origin")
+    if auth.SECURE_COOKIES:
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
+    if request.state.user is not None:   # never let a shared cache keep someone's private pages
+        response.headers.setdefault("Cache-Control", "private, no-store")
+    return response
 
 
 # ------------------------------------------------------------------ accounts
@@ -112,27 +107,40 @@ def login(request: Request, email: str = Form(""), password: str = Form(""), nex
     return resp
 
 
+def _signup_ctx(**kw):
+    ctx = {"name": "", "email": "", "invite": "", "errors": {}, "signup_mode": beta.mode()}
+    ctx.update(kw)
+    return ctx
+
+
 @app.get("/signup", response_class=HTMLResponse)
-def signup_page(request: Request):
+def signup_page(request: Request, invite: str = ""):
     if request.state.user:
         return RedirectResponse("/", status_code=303)
-    return page(request, "signup.html", {"name": "", "email": "", "errors": {}})
+    return page(request, "signup.html", _signup_ctx(invite=beta.normalise(invite)))
 
 
 @app.post("/signup")
-def signup(request: Request, name: str = Form(""), email: str = Form(""), password: str = Form("")):
+def signup(request: Request, name: str = Form(""), email: str = Form(""), password: str = Form(""),
+           invite: str = Form("")):
     email_n = email.strip().lower()
     errors = {}
     if problem := auth.email_problem(email_n):
         errors["email"] = problem
     if problem := auth.password_problem(password):
         errors["password"] = problem
+    if not errors and (problem := beta.gate(email_n, invite)):
+        errors["invite"] = problem
     with db.session() as s:
         if not errors and db.user_by_email(s, email_n):
             errors["email"] = "There's already an account with this email. Log in instead."
+        if not errors and not beta.redeem(s, invite):
+            errors["invite"] = "That invite code has already been used."
         if errors:
-            return page(request, "signup.html", {"name": name, "email": email, "errors": errors}, 422)
-        user = db.User(email=email_n, name=name.strip()[:120], password_hash=auth.hash_password(password))
+            s.rollback()
+            return page(request, "signup.html", _signup_ctx(name=name, email=email, invite=invite, errors=errors), 422)
+        user = db.User(email=email_n, name=name.strip()[:120], password_hash=auth.hash_password(password),
+                       terms_accepted=db.now(), invite_code=beta.normalise(invite) or None)
         s.add(user)
         s.commit()
         uid = user.id
@@ -141,11 +149,37 @@ def signup(request: Request, name: str = Form(""), email: str = Form(""), passwo
     return resp
 
 
+@app.get("/waitlist", response_class=HTMLResponse)
+def waitlist_page(request: Request):
+    return page(request, "waitlist.html", {"joined": False, "email": "", "error": None})
+
+
+@app.post("/waitlist")
+def waitlist(request: Request, email: str = Form(""), note: str = Form("")):
+    key = email.strip().lower()
+    if problem := auth.email_problem(key):
+        return page(request, "waitlist.html", {"joined": False, "email": email, "error": problem}, 422)
+    if not auth.waitlist_limiter.blocked(_client_ip(request)):
+        auth.waitlist_limiter.fail(_client_ip(request))
+        beta.join_waitlist(key, note)
+    return page(request, "waitlist.html", {"joined": True, "email": email, "error": None})
+
+
+def _client_ip(request):
+    return request.client.host if request.client else "unknown"
+
+
+@app.get("/terms", response_class=HTMLResponse)
+def terms_page(request: Request):
+    return page(request, "terms.html")
+
+
+@app.get("/privacy", response_class=HTMLResponse)
+def privacy_page(request: Request):
+    return page(request, "privacy.html")
+
+
 # ------------------------------------------------------------------ password reset
-def _base_url(request):
-    return (os.environ.get("SWIMFORM_BASE_URL") or str(request.base_url)).rstrip("/")
-
-
 @app.get("/forgot", response_class=HTMLResponse)
 def forgot_page(request: Request):
     return page(request, "forgot.html", {"sent": False, "email": ""})
@@ -160,7 +194,7 @@ def forgot(request: Request, email: str = Form("")):
     # find out who has one. Rate-limited per address so it can't flood an inbox.
     if user is not None and not auth.reset_limiter.blocked(key):
         auth.reset_limiter.fail(key)
-        link = f"{_base_url(request)}/reset?token={auth.create_reset(user.id)}"
+        link = f"{base_url(request)}/reset?token={auth.create_reset(user.id)}"
         greeting = f"Hi {user.name.split()[0]}," if user.name else "Hi,"
         mailer.send(user.email, "Reset your SwimForm password",
                     f"{greeting}\n\nSomeone asked to reset the password for your SwimForm account. "
@@ -191,10 +225,10 @@ def reset(request: Request, token: str = Form(""), password: str = Form("")):
 
 # ------------------------------------------------------------------ Google sign-in
 @app.get("/auth/google/start")
-def google_start(request: Request, next: str = "/"):
+def google_start(request: Request, next: str = "/", invite: str = ""):
     if not google.configured():
         return page(request, "missing.html", {}, 404)
-    return RedirectResponse(google.start(request, _safe_next(next)), status_code=303)
+    return RedirectResponse(google.start(request, _safe_next(next), beta.normalise(invite)), status_code=303)
 
 
 @app.get("/auth/google/callback")
@@ -222,7 +256,7 @@ def logout(request: Request):
 
 
 # ------------------------------------------------------------------ account settings
-SAVED = {"name": "Name saved.", "email": "Email changed. We sent a note to your old address.",
+SAVED = {"consent": "Saved.", "name": "Name saved.", "email": "Email changed. We sent a note to your old address.",
          "password": "Password saved. Any other devices have been logged out.",
          "sessions": "Every other device has been logged out."}
 
@@ -231,6 +265,7 @@ def account_page(request, errors=None, status_code=200, saved=None):
     user = request.state.user
     return page(request, "account.html", {"errors": errors or {}, "saved": SAVED.get(saved or ""),
                 "has_password": bool(user.password_hash), "google_linked": bool(user.google_sub),
+                "plan": billing.status(user),
                 "confirm_word": account.CONFIRM_WORD}, status_code)
 
 
@@ -251,6 +286,14 @@ def account_name(request: Request, name: str = Form("")):
         return login_redirect(request)
     account.update_name(request.state.user, name)
     return _saved("name")
+
+
+@app.post("/account/consent")
+def account_consent(request: Request, train_consent: str = Form("")):
+    if request.state.user is None:
+        return login_redirect(request)
+    account.set_train_consent(request.state.user, bool(train_consent))
+    return _saved("consent")
 
 
 @app.post("/account/email")
@@ -305,18 +348,26 @@ def home(request: Request):
     return page(request, "reports.html", {"items": items})
 
 
+def _upload_ctx(user, problems=None):
+    return {"problems": problems or {}, "plan": billing.status(user), "train_consent": user.train_consent,
+            "collecting": os.environ.get("SWIMFORM_POSE", "synthetic") == "collect"}
+
+
 @app.get("/analyses/new", response_class=HTMLResponse)
 def upload_page(request: Request):
     if request.state.user is None:
         return login_redirect(request)
-    return page(request, "upload.html", {"problems": {}})
+    return page(request, "upload.html", _upload_ctx(request.state.user))
 
 
 @app.post("/analyses")
-async def create_analysis(request: Request, side: UploadFile | None = None, head_on: UploadFile | None = None):
+async def create_analysis(request: Request, side: UploadFile | None = None, head_on: UploadFile | None = None,
+                          train_ok: str = Form("")):
     user = request.state.user
     if user is None:
         return login_redirect(request)
+    if not billing.status(user)["can_analyse"]:
+        return page(request, "upload.html", _upload_ctx(user), 402)
     files = {}
     for slot, up in (("side", side), ("head_on", head_on)):
         if up is not None and up.filename:
@@ -324,12 +375,35 @@ async def create_analysis(request: Request, side: UploadFile | None = None, head
     try:
         aid = pipeline.queue(files)
     except pipeline.UploadProblem as e:
-        return page(request, "upload.html", {"problems": e.problems}, 422)
+        return page(request, "upload.html", _upload_ctx(user, e.problems), 422)
+    account.set_train_consent(user, bool(train_ok))   # remembered as the default for next time
     with db.session() as s:
-        s.add(db.Analysis(id=aid, user_id=user.id, status="queued"))
+        s.add(db.Analysis(id=aid, user_id=user.id, status="queued", train_ok=bool(train_ok)))
         s.commit()
     jobs.submit(aid)
     return RedirectResponse(f"/analyses/{aid}", status_code=303)
+
+
+def render_analysis(request, row, admin_view=None):
+    """The page for one analysis in whatever state it's in (also used by /admin)."""
+    aid = row.id
+    if row.status in ("queued", "running"):
+        return page(request, "processing.html", {"aid": aid, "status": row.status, "admin_view": admin_view})
+    if row.status == "rejected":
+        return page(request, "rejected.html", {"problems": json.loads(row.problems or "{}"), "admin_view": admin_view})
+    if row.status == "failed":
+        return page(request, "failed.html", {"admin_view": admin_view}, 200 if admin_view else 500)
+    if row.status == "waiting" or (row.status == "review" and not admin_view):
+        return page(request, "held.html", {"status": row.status, "admin_view": admin_view})
+    record = pipeline.load(aid)
+    if record is None:
+        return page(request, "missing.html", {}, 404)
+    return page(request, "report.html", {"r": presenter.build(record, rules()), "coach_note": row.coach_note,
+                                         "feedback": feedback.for_analysis(aid), "admin_view": admin_view,
+                                         "saved": request.query_params.get("saved")})
+
+
+admin.render_analysis = render_analysis
 
 
 @app.get("/analyses/{aid}", response_class=HTMLResponse)
@@ -340,16 +414,7 @@ def report_page(request: Request, aid: str):
     row = auth.owned_analysis(user, aid)
     if row is None:
         return page(request, "missing.html", {}, 404)
-    if row.status in ("queued", "running"):
-        return page(request, "processing.html", {"aid": aid, "status": row.status})
-    if row.status == "rejected":
-        return page(request, "rejected.html", {"problems": json.loads(row.problems or "{}")})
-    if row.status == "failed":
-        return page(request, "failed.html", {}, 500)
-    record = pipeline.load(aid)
-    if record is None:
-        return page(request, "missing.html", {}, 404)
-    return page(request, "report.html", {"r": presenter.build(record, rules())})
+    return render_analysis(request, row)
 
 
 @app.get("/analyses/{aid}/status")
@@ -360,6 +425,62 @@ def report_status(request: Request, aid: str):
     return {"status": row.status}
 
 
+@app.post("/analyses/{aid}/feedback")
+def report_feedback(request: Request, aid: str, issue_id: str = Form(""), verdict: str = Form(""),
+                    comment: str = Form("")):
+    user = request.state.user
+    row = auth.owned_analysis(user, aid)
+    if row is None or row.status != "done":
+        return page(request, "missing.html", {}, 404)
+    feedback.save(user, aid, issue_id, verdict, comment)
+    if "application/json" in request.headers.get("accept", ""):
+        return {"ok": True}
+    anchor = f"fb-{issue_id}" if issue_id else "fb-overall"
+    return RedirectResponse(f"/analyses/{aid}?saved=1#{anchor}", status_code=303)
+
+
+# ------------------------------------------------------------------ plan and payments
+@app.get("/billing", response_class=HTMLResponse)
+def billing_page(request: Request, done: str = ""):
+    user = request.state.user
+    if user is None:
+        return login_redirect(request)
+    if not billing.visible():
+        return page(request, "missing.html", {}, 404)
+    return page(request, "billing.html", {"plan": billing.status(user), "done": bool(done), "error": None})
+
+
+def _to_stripe(request, make_url):
+    user = request.state.user
+    if user is None:
+        return login_redirect(request)
+    if not billing.configured():
+        return page(request, "missing.html", {}, 404)
+    try:
+        return RedirectResponse(make_url(user, base_url(request)), status_code=303)
+    except billing.BillingError as e:
+        return page(request, "billing.html", {"plan": billing.status(user), "done": False, "error": str(e)}, 502)
+
+
+@app.post("/billing/checkout")
+def billing_checkout(request: Request):
+    return _to_stripe(request, billing.checkout_url)
+
+
+@app.post("/billing/portal")
+def billing_portal(request: Request):
+    return _to_stripe(request, billing.portal_url)
+
+
+@app.post("/webhooks/stripe")
+async def stripe_webhook(request: Request):
+    try:
+        event = billing.verify(await request.body(), request.headers.get("stripe-signature", ""))
+    except billing.BillingError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return {"result": billing.handle(event)}
+
+
 @app.get("/guide", response_class=HTMLResponse)
 def guide_page(request: Request):
     groups = [g for g in presenter.coverage(rules()) if g["issues"]]
@@ -368,4 +489,10 @@ def guide_page(request: Request):
 
 @app.get("/healthz")
 def healthz():
+    from sqlalchemy import text
+    try:
+        with db.session() as s:
+            s.execute(text("SELECT 1"))
+    except Exception:   # noqa: BLE001
+        return JSONResponse({"ok": False, "database": "unreachable"}, status_code=503)
     return {"ok": True}

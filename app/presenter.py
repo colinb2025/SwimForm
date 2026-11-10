@@ -132,6 +132,7 @@ def build(record, rules):
             "snapshot_moment": snap[1] if snap else None,
             "snapshot_view": snapshots.SPECS[p["issue_id"]][0] if snap else None,
             "caption": caption(p["issue_id"], p["evidence"]),
+            "id": p["issue_id"],
             "name": p["name"], "estimated": p["evidence"] == "proxy", "arm_note": _arm_note(arms),
             "observed": p["what_we_observed"], "why": p["why_it_matters"],
             "drills": [d for d in p["interventions"] if d["type"] == "drill"],

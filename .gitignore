@@ -46,3 +46,6 @@ dist/
 .idea/
 .DS_Store
 Thumbs.db
+
+# swimform.train working folder
+training/
