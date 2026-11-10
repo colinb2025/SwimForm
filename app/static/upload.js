@@ -24,6 +24,7 @@
   }
 
   function show(slot, file) {
+    var card = slot.closest(".slot");
     var name = slot.querySelector(".chosen-name");
     var info = slot.querySelector(".chosen-info");
     var canvas = slot.querySelector(".chosen-view canvas");
@@ -31,8 +32,9 @@
     warn.hidden = true;
     warn.innerHTML = "";
     slot.classList.toggle("chosen", !!file);
-    slot.classList.remove("has-problem", "no-preview");
-    var prob = slot.querySelector(".problem");
+    slot.classList.remove("no-preview");
+    card.classList.remove("has-problem");
+    var prob = card.querySelector(".problem");
     if (prob) prob.remove();
     if (!file) return;
     name.textContent = file.name;
@@ -65,7 +67,7 @@
     });
   }
 
-  document.querySelectorAll(".slot").forEach(function (slot) {
+  document.querySelectorAll(".zone").forEach(function (slot) {
     var input = slot.querySelector(".drop input");
     var drop = slot.querySelector(".drop");
     input.addEventListener("change", function () { show(slot, input.files[0]); });
@@ -89,12 +91,29 @@
 
   var form = document.getElementById("upload-form");
   form.addEventListener("submit", function (e) {
+    // One clip of each view is the minimum; say so here instead of after a long upload.
+    var missing = null;
+    form.querySelectorAll(".slot").forEach(function (card) {
+      var any = Array.prototype.some.call(card.querySelectorAll("input[type=file]"), function (i) { return i.files.length; });
+      var old = card.querySelector(".problem");
+      if (old) old.remove();
+      card.classList.toggle("has-problem", !any);
+      if (any) return;
+      var box = document.createElement("div");
+      box.className = "notice notice-error problem";
+      box.setAttribute("role", "alert");
+      box.innerHTML = "<div><p>Add a " + card.getAttribute("data-view") + " clip: above water, underwater, or both.</p></div>";
+      card.querySelector(".zones").before(box);
+      missing = missing || card;
+    });
+    if (missing) { e.preventDefault(); missing.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
     if (!window.XMLHttpRequest || !window.FormData) return;   // plain form post
     e.preventDefault();
     var button = form.querySelector("button[type=submit]");
     var progress = form.querySelector(".progress");
     var bar = progress.querySelector(".bar span");
     var label = progress.querySelector(".progress-label");
+    var label0 = button.textContent;
     button.disabled = true;
     button.textContent = "Uploading…";
     progress.hidden = false;
@@ -111,7 +130,7 @@
       bar.style.width = "100%";
       progress.classList.add("working");
       button.textContent = "Analysing…";
-      label.textContent = "Checking both clips, then measuring your stroke. This takes about a minute.";
+      label.textContent = "Checking your clips, then measuring your stroke. This takes about a minute.";
     });
     xhr.addEventListener("load", function () {
       if (xhr.status >= 200 && xhr.status < 300 && xhr.responseURL && xhr.responseURL.indexOf("/analyses/") !== -1) {
@@ -123,7 +142,7 @@
     });
     xhr.addEventListener("error", function () {
       button.disabled = false;
-      button.textContent = "Analyse my stroke";
+      button.textContent = label0;
       progress.classList.remove("working");
       label.textContent = "The upload stopped. Check your connection and try again.";
     });

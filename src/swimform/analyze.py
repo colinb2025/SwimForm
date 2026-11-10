@@ -1,5 +1,10 @@
 """
-One analysis = one side-view clip + one head-on clip.
+One analysis = at least one side-view clip and one head-on clip.
+
+A view may have several clips (say, the side filmed above the water and again below
+it). Each metric is then taken from whichever clip read it best, so an underwater clip
+supplies the catch while a deck clip supplies the recovery, and a clip that couldn't
+see something never drags down one that could.
 
 Each metric is measured from the view the workbook assigns it (side, head_on, or
 both: the 3D average stroke fused from the two clips, see stroke3d.py), so a flaw is
@@ -213,10 +218,38 @@ def _issue_arms(rules, measurements, per_cycle, detail):
     return out
 
 
+def _measure(m, res, worse, method, min_cycles, min_usable_frac):
+    """One metric from one clip. -> reason (str) if it can't be assessed there, else
+    (value, usable per-cycle values, detail)."""
+    mid, view = m["metric_id"], m["view"]
+    if mid in res["errors"]:
+        return f"could not be computed ({res['errors'][mid]})"
+    if mid in M.SIDED:
+        out = _sided(m, res, worse.get(mid), min_cycles, min_usable_frac)
+        if isinstance(out, str):
+            return out
+        value, usable, d = out
+        return value, usable, dict(d, value=round(value, 3), view=view, method=method(view, mid))
+    vals = res["values"].get(mid, [])
+    applicable = [v for v in vals if v != M.SKIP]
+    usable = [v for v in applicable if v is not None]
+    n = len(applicable)
+    if not res["cycles"]:
+        return f"no stroke cycles detected in the {view} video"
+    if n == 0:
+        return f"no breaths seen in the {view} video" if m.get("phase") == "breath" \
+            else f"did not occur in the {view} video"
+    if len(usable) < min_cycles or len(usable) / n < min_usable_frac:
+        return f"only {len(usable)} of {n} stroke cycles readable in the {view} video"
+    value = float(AGGREGATES[m["aggregate"]](usable))
+    return value, usable, {"value": round(value, 3), "view": view, "method": method(view, mid),
+                           "usable_cycles": len(usable), "cycles": n, "confidence": round(len(usable) / n, 2)}
+
+
 def analyze(tracks, rules=DEFAULT_RULES, require=VIEWS, top_n=3,
             min_cycles=MIN_CYCLES, min_usable_frac=MIN_USABLE_FRAC):
     """
-    tracks: {"side": PoseTrack, "head_on": PoseTrack}
+    tracks: {"side": PoseTrack | [PoseTrack, ...], "head_on": PoseTrack | [PoseTrack, ...]}
     rules:  path to the workbook, or an already-loaded rules dict
     require: views that must be present; analysis refuses to run without them
     """
@@ -225,27 +258,46 @@ def analyze(tracks, rules=DEFAULT_RULES, require=VIEWS, top_n=3,
         if errors:
             raise WorkbookMismatch("workbook invalid: " + "; ".join(errors))
     _check_registry(rules)
-    missing = [v for v in require if v not in tracks]
+    clips = {v: (list(t) if isinstance(t, (list, tuple)) else [t]) for v, t in tracks.items()}
+    clips = {v: t for v, t in clips.items() if t}
+    missing = [v for v in require if v not in clips]
     if missing:
         raise MissingViewError(f"missing required view(s): {', '.join(missing)}")
-    for v, tr in tracks.items():
-        if tr.view != v:
-            raise MissingViewError(f"track supplied as {v!r} is a {tr.view!r} track")
+    for v, trs in clips.items():
+        for tr in trs:
+            if tr.view != v:
+                raise MissingViewError(f"track supplied as {v!r} is a {tr.view!r} track")
 
     proxy_metrics = {r["metric_id"] for r in rules["issue_rules"] if r.get("evidence") == "proxy"}
 
     def method(view, mid):
         return METHOD[view].replace("direct", "proxy", 1) if mid in proxy_metrics else METHOD[view]
 
-    per_view, side_passes = {}, None
-    for v, tr in tracks.items():
+    per_clip, clip_passes = {}, {}
+    for v, trs in clips.items():
         if v == SIDE:
-            side_passes = P.split(tr)
-            per_view[v] = _compute_side(side_passes)
+            clip_passes[v] = [P.split(tr) for tr in trs]
+            per_clip[v] = [_compute_side(ps) for ps in clip_passes[v]]
         else:
-            per_view[v] = M.compute(tr)
+            per_clip[v] = [M.compute(tr) for tr in trs]
+    # The clip that stands for its view where one has to (snapshots, the 3D stroke's
+    # first choice): the one with the most stroke cycles read.
+    main = {v: max(range(len(rs)), key=lambda i: len(rs[i]["cycles"])) for v, rs in per_clip.items()}
+    per_view = {v: per_clip[v][i] for v, i in main.items()}
+    side_passes = clip_passes[SIDE][main[SIDE]] if SIDE in main else None
+    tracks = {v: clips[v][i] for v, i in main.items()}
     worse = _worse_direction(rules)
-    fused = S3.compute(tracks[SIDE], tracks[HEAD_ON]) if SIDE in tracks and HEAD_ON in tracks else None
+
+    # 3D stroke: try every side x head-on pairing and keep the one whose two views agree best.
+    fused, fused_pair = None, None
+    if SIDE in clips and HEAD_ON in clips:
+        for i, st in enumerate(clips[SIDE]):
+            for j, ht in enumerate(clips[HEAD_ON]):
+                f = S3.compute(st, ht)
+                better = fused is None or (f["reason"] is None and (
+                    fused["reason"] is not None or f["stroke"].agreement > fused["stroke"].agreement))
+                if better:
+                    fused, fused_pair = f, {SIDE: i, HEAD_ON: j}
 
     measurements, per_cycle, detail, not_assessed = {}, {}, {}, {}
     for m in rules["metrics"]:
@@ -265,42 +317,20 @@ def analyze(tracks, rules=DEFAULT_RULES, require=VIEWS, top_n=3,
                                "usable_cycles": min(st.cycles.values()), "cycles": min(st.cycles.values()),
                                "confidence": round(st.agreement, 2), "view_agreement": st.agreement}
             continue
-        if view not in per_view:
+        if view not in per_clip:
             not_assessed[mid] = f"no {view} video"
             continue
-        res = per_view[view]
-        if mid in res["errors"]:
-            not_assessed[mid] = f"could not be computed ({res['errors'][mid]})"
+        outs = [_measure(m, res, worse, method, min_cycles, min_usable_frac) for res in per_clip[view]]
+        good = [(i, o) for i, o in enumerate(outs) if not isinstance(o, str)]
+        if not good:
+            not_assessed[mid] = outs[main[view]]
             continue
-        if mid in M.SIDED:
-            out = _sided(m, res, worse.get(mid), min_cycles, min_usable_frac)
-            if isinstance(out, str):
-                not_assessed[mid] = out
-                continue
-            value, usable, d = out
-            measurements[mid] = round(value, 3)
-            per_cycle[mid] = usable
-            detail[mid] = dict(d, value=round(value, 3), view=view, method=method(view, mid))
-            continue
-        vals = res["values"].get(mid, [])
-        applicable = [v for v in vals if v != M.SKIP]
-        usable = [v for v in applicable if v is not None]
-        n = len(applicable)
-        if not res["cycles"]:
-            not_assessed[mid] = f"no stroke cycles detected in the {view} video"
-            continue
-        if n == 0:
-            not_assessed[mid] = f"no breaths seen in the {view} video" if m.get("phase") == "breath" \
-                else f"did not occur in the {view} video"
-            continue
-        if len(usable) < min_cycles or len(usable) / n < min_usable_frac:
-            not_assessed[mid] = f"only {len(usable)} of {n} stroke cycles readable in the {view} video"
-            continue
-        value = float(AGGREGATES[m["aggregate"]](usable))
+        # Best-read clip wins; ties go to the main clip, then to the earlier one.
+        i, (value, usable, d) = max(good, key=lambda g: (g[1][2]["confidence"], g[1][2]["usable_cycles"],
+                                                         g[0] == main[view], -g[0]))
         measurements[mid] = round(value, 3)
         per_cycle[mid] = usable
-        detail[mid] = {"value": round(value, 3), "view": view, "method": method(view, mid),
-                       "usable_cycles": len(usable), "cycles": n, "confidence": round(len(usable) / n, 2)}
+        detail[mid] = dict(d, clip=i)
 
     result = R.evaluate(rules, measurements, per_cycle, top_n=top_n)
     for mid, s in result["scores"].items():
@@ -349,6 +379,10 @@ def analyze(tracks, rules=DEFAULT_RULES, require=VIEWS, top_n=3,
         "average_strokes": average_strokes,
         "views": {v: {"frames": tracks[v].n, "fps": tracks[v].fps, "cycles": len(per_view[v]["cycles"]),
                       "detection_rates": tracks[v].detection_rates()} for v in tracks},
+        # Every clip supplied, in the order given per view; measurements[...]["clip"] indexes into these.
+        "clips": {v: [{"frames": tr.n, "fps": tr.fps, "cycles": len(per_clip[v][i]["cycles"]), "main": i == main[v],
+                       "measurements_used": sum(1 for d in detail.values() if d.get("view") == v and d.get("clip") == i)}
+                      for i, tr in enumerate(clips[v])] for v in clips},
         "measurements": detail,
         "metrics_not_assessed": not_assessed,
         "priorities": result["priorities"],
@@ -358,9 +392,10 @@ def analyze(tracks, rules=DEFAULT_RULES, require=VIEWS, top_n=3,
         # Arm-specific issues: {issue_id: {"limb", "checked": [...], "affected": [...], "unseen": {...}}}
         "issue_arms": issue_arms,
         "side_passes": P.summary(side_passes) if side_passes is not None else None,
-        "errors": {mid: msg for v in per_view.values() for mid, msg in v["errors"].items()},
+        "errors": {mid: msg for rs in per_clip.values() for r in rs for mid, msg in r["errors"].items()},
         "stroke3d": None if fused is None else {
             "used": fused["reason"] is None,
+            "clips": fused_pair,
             "reason": fused["reason"],
             "view_agreement": fused["stroke"].agreement if fused["stroke"] else None,
             "cycles_averaged": fused["stroke"].cycles if fused["stroke"] else None,

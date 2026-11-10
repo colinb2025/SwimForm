@@ -10,11 +10,12 @@
   {% for slot, title in [("side", "Side view"), ("head_on", "Head-on view")] %}
   <section class="card">
     <h2 style="margin-bottom:12px">{{ title }}</h2>
-    {% if problems.get(slot) %}
-    <div class="notice notice-error" role="alert"><div>{% for p in problems[slot] %}<p>{{ p }}</p>{% endfor %}</div></div>
-    {% else %}
-    <p class="muted">This clip looked fine.</p>
-    {% endif %}
+    {% set found = [] %}
+    {% for key, label in [(slot, "Above-water clip"), (slot ~ "_uw", "Underwater clip")] if problems.get(key) %}
+    {% set _ = found.append(1) %}
+    <div class="notice notice-error" role="alert" style="margin-top:10px"><div><p><b>{{ label }}</b></p>{% for p in problems[key] %}<p>{{ p }}</p>{% endfor %}</div></div>
+    {% endfor %}
+    {% if not found %}<p class="muted">Fine as filmed.</p>{% endif %}
   </section>
   {% endfor %}
 </div>

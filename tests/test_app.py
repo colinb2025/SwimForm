@@ -105,7 +105,7 @@ def test_swapped_clips_are_caught_with_a_fix(client):
 
 def test_missing_and_non_video_files_are_rejected(client):
     r = upload(client, head_on=None)
-    assert r.status_code == 422 and "Add a clip here." in r.text
+    assert r.status_code == 422 and "Add a head-on clip: above water, underwater, or both." in r.text
     r = upload(client, side=("notes.txt", b"x"))
     assert r.status_code == 422 and "look like a video" in text(r.text)
     r = upload(client, side=("empty.mp4", b""))

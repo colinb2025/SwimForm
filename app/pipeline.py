@@ -36,7 +36,18 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA = Path(os.environ.get("SWIMFORM_DATA", ROOT / "data"))
 VIDEO_EXT = {".mp4", ".mov", ".m4v", ".avi", ".mkv", ".webm"}
 MAX_BYTES = 500 * 1024 * 1024
-SLOTS = (SIDE, HEAD_ON)
+SLOTS = (SIDE, HEAD_ON)   # the two views every analysis needs
+# Upload slots: which view each one is, and where the camera was. An analysis needs at
+# least one clip of each view; extra clips of a view are all used (see swimform.analyze).
+CLIPS = {
+    "side": (SIDE, "above"), "head_on": (HEAD_ON, "above"),
+    "side_uw": (SIDE, "underwater"), "head_on_uw": (HEAD_ON, "underwater"),
+}
+VIEW_WORDS = {SIDE: "side-view", HEAD_ON: "head-on"}
+
+
+def slots_for(view):
+    return [slot for slot, (v, _) in CLIPS.items() if v == view]
 
 
 class UploadProblem(Exception):
@@ -71,20 +82,22 @@ def _synthetic_swimmer(seed):
 
 def pose_synthetic(paths, names):
     from swimform.synthetic import generate, generate_down_and_back
-    digests = {s: _sha(paths[s]) for s in SLOTS}
-    session_seed = int.from_bytes(hashlib.sha256(digests[SIDE] + digests[HEAD_ON]).digest()[:8], "big")
+    digests = {slot: _sha(paths[slot]) for slot in paths}
+    first = {view: next(slot for slot in slots_for(view) if slot in paths) for view in SLOTS}
+    session_seed = int.from_bytes(hashlib.sha256(digests[first[SIDE]] + digests[first[HEAD_ON]]).digest()[:8], "big")
     sw = _synthetic_swimmer(session_seed)
     tracks = {}
-    for slot in SLOTS:
+    for slot in paths:
+        slot_view, water = CLIPS[slot]
         n = names[slot].lower()
-        view = HEAD_ON if ("head" in n or "front" in n) else SIDE if "side" in n else slot
+        view = HEAD_ON if ("head" in n or "front" in n) else SIDE if "side" in n else slot_view
         camera = "deck" if "deck" in n else "underwater"
         seed = int.from_bytes(digests[slot][:4], "big")
         if view == SIDE and "oneway" not in n:
             tr = generate_down_and_back(sw, camera=camera, quality="typical", seed=seed)
         else:
             tr = generate(view, sw, camera=camera, quality="typical", seed=seed, t0=3.7 if view == HEAD_ON else 0.0)
-        tr.view = slot   # the slot it was uploaded into; the clip check decides if that was right
+        tr.view = slot_view   # the slot it was uploaded into; the clip check decides if that was right
         tracks[slot] = tr
     return tracks
 
@@ -94,14 +107,14 @@ def pose_yolo(paths, names):
     from swimform import pose as harness
     model = YOLO(os.environ["SWIMFORM_WEIGHTS"])
     tracks = {}
-    for slot in SLOTS:
+    for slot in paths:
         with tempfile.TemporaryDirectory() as out:
             summary = harness.analyze(str(paths[slot]), model, out)
             if summary.get("keypoints") not in (None, list(KEYPOINTS)):
                 raise RuntimeError("SWIMFORM_WEIGHTS is not a 15-point SwimForm model (it predicts "
                                    f"{len(summary['keypoints'])} points); use the fine-tuned weights")
             stem = Path(paths[slot]).stem
-            tracks[slot] = PoseTrack.from_json(os.path.join(out, f"{stem}_pose.json"), view=slot)
+            tracks[slot] = PoseTrack.from_json(os.path.join(out, f"{stem}_pose.json"), view=CLIPS[slot][0])
     return tracks
 
 
@@ -111,12 +124,14 @@ PROVIDERS = {"synthetic": pose_synthetic, "yolo": pose_yolo}
 # ------------------------------------------------------------------ the run
 def save_uploads(files):
     """files: {slot: (filename, fileobj)} -> (analysis id, {slot: path}, {slot: filename})."""
+    files = {slot: f for slot, f in files.items() if slot in CLIPS and f[0]}
     problems = {}
-    for slot in SLOTS:
-        if slot not in files or not files[slot][0]:
-            problems[slot] = ["Add a clip here."]
-        elif Path(files[slot][0]).suffix.lower() not in VIDEO_EXT:
+    for slot, (name, _) in files.items():
+        if Path(name).suffix.lower() not in VIDEO_EXT:
             problems[slot] = ["This doesn't look like a video. Use an .mp4 or .mov file straight from your phone."]
+    for view in SLOTS:   # one clip of each view is the minimum; above water or under it
+        if not any(slot in files for slot in slots_for(view)):
+            problems.setdefault(view, []).append(f"Add a {VIEW_WORDS[view]} clip: above water, underwater, or both.")
     if problems:
         raise UploadProblem(problems)
     aid = uuid.uuid4().hex[:12]
@@ -133,7 +148,7 @@ def save_uploads(files):
 
 def _write(folder, files):
     paths, names = {}, {}
-    for slot in SLOTS:
+    for slot in files:
         name, fobj = files[slot]
         dest = folder / f"{slot}{Path(name).suffix.lower()}"
         size = 0
@@ -173,16 +188,30 @@ def process(aid, rules_path=DEFAULT_RULES):
         if storage.fetch(folder(aid), aid, path.name) is None:
             raise RuntimeError(f"the {slot} clip is no longer stored")
     tracks = PROVIDERS[provider](paths, names)
-    checks = {slot: check_clip(tracks[slot], slot) for slot in SLOTS}
-    problems = {slot: c["problems"] for slot, c in checks.items() if not c["ok"]}
-    if problems:
-        raise UploadProblem(problems)
+    checks = {slot: check_clip(tracks[slot], CLIPS[slot][0]) for slot in tracks}
+    usable = {view: [slot for slot in slots_for(view) if slot in checks and checks[slot]["ok"]] for view in SLOTS}
+    if not all(usable.values()):   # a view with no usable clip: nothing honest to report
+        raise UploadProblem({slot: c["problems"] for slot, c in checks.items() if not c["ok"]})
     rules, errors = R.load(rules_path)
     if errors:
         raise RuntimeError("rules workbook invalid: " + "; ".join(errors))
-    report = analyze(tracks, rules, top_n=3)
+    report = analyze({view: [tracks[slot] for slot in usable[view]] for view in SLOTS}, rules, top_n=3)
+    # What each uploaded clip gave us, for the report's footage notes. An extra clip that
+    # failed its check is left out of the analysis and listed here with the reason.
+    clips = []
+    for slot in [sl for view in SLOTS for sl in slots_for(view) if sl in tracks]:   # grouped by view
+        view, water = CLIPS[slot]
+        tr, c = tracks[slot], checks[slot]
+        used = slot in usable[view]
+        info = report["clips"][view][usable[view].index(slot)] if used else {}
+        clips.append({"slot": slot, "view": view, "water": water, "file": names[slot], "used": used,
+                      "problems": c["problems"], "cycles": c["cycles"], "visible": round(c["visible"], 3),
+                      "passes": len(c["passes"]) if c.get("passes") else None,
+                      "fps": round(float(tr.fps), 1), "size": [int(tr.W), int(tr.H)],
+                      "seconds": round(tr.n / tr.fps, 1) if tr.fps else None,
+                      "measurements_used": info.get("measurements_used", 0)})
     record = {"id": aid, "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-              "files": names, "pose_provider": provider, "report": report}
+              "files": names, "clips": clips, "pose_provider": provider, "report": report}
     with open(folder(aid) / "report.json", "w") as f:
         json.dump(record, f, default=str, indent=1)
     return record

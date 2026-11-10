@@ -160,6 +160,31 @@
   </div>
 </section>
 
+{% if r.footage %}
+<section class="card section" id="footage" aria-labelledby="foot-h">
+  <div class="section-head"><h2 id="foot-h">Get more from your next upload</h2>
+    <p>{% if r.footage.all_good %}Your clips were good to work with.{% else %}What we could read from each clip, and how to give us more.{% endif %}</p></div>
+  <div class="footage-list">
+    {% for c in r.footage.clips %}
+    <div class="footage-clip">
+      <h3>{{ c.name }}
+        {% if not c.used %}<span class="pill pill-flagged">Couldn't use</span>
+        {% elif c.tips %}<span class="pill pill-estimated">Could be better</span>
+        {% else %}<span class="pill pill-clear">Good</span>{% endif %}</h3>
+      {% if c.facts %}<p class="footage-facts">{{ c.facts|capitalize }}.</p>{% endif %}
+      {% if c.problems or c.tips %}
+      <ul class="footage-tips">{% for t in c.problems + c.tips %}<li>{{ t }}</li>{% endfor %}</ul>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% for u in r.footage.upgrades %}
+  <div class="upgrade"><b>Add {{ u.clip }}</b>
+    It would let us measure {{ "this" if u.issues|length == 1 else "these" }} directly instead of estimating or skipping {{ "it" if u.issues|length == 1 else "them" }}: {{ u.issues|join(", ") }}.</div>
+  {% endfor %}
+</section>
+{% endif %}
+
 <details class="card section measured">
   <summary>How we measured it</summary>
   <p class="intro-text">Each score shows how close a measurement sits to the ideal range (100 = inside it).

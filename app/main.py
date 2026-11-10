@@ -362,6 +362,7 @@ def upload_page(request: Request):
 
 @app.post("/analyses")
 async def create_analysis(request: Request, side: UploadFile | None = None, head_on: UploadFile | None = None,
+                          side_uw: UploadFile | None = None, head_on_uw: UploadFile | None = None,
                           train_ok: str = Form("")):
     user = request.state.user
     if user is None:
@@ -369,7 +370,7 @@ async def create_analysis(request: Request, side: UploadFile | None = None, head
     if not billing.status(user)["can_analyse"]:
         return page(request, "upload.html", _upload_ctx(user), 402)
     files = {}
-    for slot, up in (("side", side), ("head_on", head_on)):
+    for slot, up in (("side", side), ("head_on", head_on), ("side_uw", side_uw), ("head_on_uw", head_on_uw)):
         if up is not None and up.filename:
             files[slot] = (up.filename, up.file)
     try:
