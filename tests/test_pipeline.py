@@ -157,9 +157,8 @@ def test_deck_camera_catches_or_honestly_skips_each_fault(rules, fault):
 
 def test_deck_camera_reports_why_underwater_issues_were_skipped(rules):
     report = analyze(session(quality="typical", camera="deck"), rules)
-    assert "dropped_elbow" in report["issues_not_assessed"]
-    assert "readable" in report["issues_not_assessed"]["dropped_elbow"] \
-        or "no stroke cycles" in report["issues_not_assessed"]["dropped_elbow"]
+    assert "readable" in report["metrics_not_assessed"]["catch_upper_arm_angle"]   # the pull itself wasn't measured
+    assert report["issues_clear"]["dropped_elbow"] == "proxy"                      # ...only inferred through the surface
     # above-water issues are still assessed from the deck
     for iid in ("late_breath", "crossover_entry", "low_body_rotation", "wide_recovery_straight_arm"):
         assert iid not in report["issues_not_assessed"], iid
@@ -293,12 +292,50 @@ def test_every_measurement_says_how_it_was_taken(rules):
 
 
 # --------------------------------------------------------- direct vs proxy evidence
-@pytest.mark.parametrize("fault", ["short_pull", "over_gliding"])
+@pytest.mark.parametrize("fault", ["dropped_elbow", "straight_arm_pull"])
 def test_deck_catches_by_proxy_with_hedged_wording(rules, fault):
     report = analyze(session({fault: 1.0}, quality="typical", camera="deck", seed=5), rules, top_n=20)
     hit = next(p for p in report["priorities"] if p["issue_id"] == fault)
     assert hit["evidence"] == "proxy"
-    assert "may" in hit["what_we_observed"] and "confirm" in hit["what_we_observed"]
+    assert "may be" in hit["what_we_observed"]
+
+
+@pytest.mark.parametrize("fault", ["short_pull", "sinking_hips", "over_gliding"])
+def test_deck_measures_what_happens_at_the_surface(rules, fault):
+    """The hand leaving the water, the back line and the glide out front are all visible
+    from the side above water: measured, not hedged."""
+    report = analyze(session({fault: 1.0}, quality="typical", camera="deck", seed=5), rules, top_n=20)
+    hit = next(p for p in report["priorities"] if p["issue_id"] == fault)
+    assert hit["evidence"] == "direct" and "may" not in hit["what_we_observed"]
+    clean = analyze(session(quality="typical", camera="deck", seed=5), rules, top_n=20)
+    assert clean["issues_clear"][fault] == "direct"
+
+
+@pytest.mark.parametrize("fault, mid", [("dropped_elbow", "catch_upper_arm_angle_est"),
+                                        ("straight_arm_pull", "mid_pull_elbow_angle_est")])
+@pytest.mark.parametrize("refraction", [0.0, 0.25, 0.4])
+@pytest.mark.parametrize("quality", ["clean", "typical", "poor"])
+def test_pull_faults_are_inferred_through_the_surface(rules, fault, mid, refraction, quality):
+    """Deck footage, with the surface bending and wobbling what's under it."""
+    kw = dict(quality=quality, camera="deck", refraction=refraction, seed=3)
+    bad = analyze(session({fault: 1.0}, **kw), rules, top_n=20)
+    hit = next((p for p in bad["priorities"] if p["issue_id"] == fault), None)
+    assert hit is not None and hit["evidence"] == "proxy"
+    assert bad["measurements"][mid]["method"] == "proxy (side view)"
+    clean = analyze(session(**kw), rules, top_n=20)
+    assert triggered(clean) == set() and clean["issues_clear"][fault] == "proxy"
+
+
+def test_a_lifted_head_is_not_also_reported_as_sinking_hips(rules):
+    report = analyze(session({"high_head_position": 1.0}, quality="typical", camera="deck", seed=5), rules, top_n=20)
+    assert triggered(report) == {"high_head_position"}
+
+
+def test_glide_is_measured_in_seconds(rules):
+    report = analyze(session({"over_gliding": 1.0}, quality="typical", camera="deck", seed=5), rules, top_n=20)
+    slow, quick = report["measurements"]["glide_time"]["value"], \
+        analyze(session(quality="typical", camera="deck", seed=5), rules)["measurements"]["glide_time"]["value"]
+    assert slow > 0.7 > 0.4 > quick > 0.1
 
 
 @pytest.mark.parametrize("fault", ["short_pull", "over_gliding", "high_head_position", "sinking_hips"])
@@ -310,25 +347,26 @@ def test_underwater_footage_uses_direct_evidence(rules, fault):
 
 def test_direct_evidence_overrides_a_disagreeing_proxy(rules):
     # pull measured directly and fine; the proxy alone would have flagged it
-    r = R.evaluate(rules, {"pull_exit_position": 0.2, "exit_reappear_position": -1.5}, top_n=20)
-    assert "short_pull" not in {p["issue_id"] for p in r["priorities"]}
-    assert r["assessed_with"]["short_pull"] == "direct"
+    r = R.evaluate(rules, {"catch_upper_arm_angle": 30, "catch_forearm_angle": 10, "catch_upper_arm_angle_est": 60}, top_n=20)
+    assert "dropped_elbow" not in {p["issue_id"] for p in r["priorities"]}
+    assert r["assessed_with"]["dropped_elbow"] == "direct"
 
 
 def test_proxy_alone_flags_but_ranks_below_equal_direct_evidence(rules):
-    proxy = R.evaluate(rules, {"exit_reappear_position": -1.5}, top_n=20)["priorities"][0]
-    direct = R.evaluate(rules, {"pull_exit_position": -0.45}, top_n=20)["priorities"][0]
-    assert proxy["issue_id"] == direct["issue_id"] == "short_pull"
+    proxy = R.evaluate(rules, {"mid_pull_elbow_angle_est": 160}, top_n=20)["priorities"][0]
+    direct = R.evaluate(rules, {"mid_pull_elbow_angle": 160}, top_n=20)["priorities"][0]
+    assert proxy["issue_id"] == direct["issue_id"] == "straight_arm_pull"
     assert proxy["evidence"] == "proxy" and proxy["priority"] < direct["priority"] * 1.2
 
 
 def test_clear_issues_say_how_they_were_checked(rules):
     report = analyze(session(quality="typical", camera="deck"), rules)
-    assert report["issues_clear"]["short_pull"] == "proxy"
+    assert report["issues_clear"]["dropped_elbow"] == "proxy"
+    assert report["issues_clear"]["short_pull"] == "direct"
     assert report["issues_clear"]["crossover_entry"] == "direct"
 
 
 def test_proxy_rule_without_hedged_wording_fails_validation(rules):
-    bad = {**rules, "issues": [dict(i, proxy_observed=None) if i["issue_id"] == "short_pull" else i
+    bad = {**rules, "issues": [dict(i, proxy_observed=None) if i["issue_id"] == "dropped_elbow" else i
                               for i in rules["issues"]]}
     assert any("proxy_observed" in e for e in R.validate(bad))

@@ -19,9 +19,15 @@ import numpy as np
 
 from .posedata import PoseTrack
 from .schema import HEAD_ON, SIDE
+from .schema import CONF
 
 MIN_CYCLE_S, MAX_CYCLE_S = 0.6, 2.5
 MIN_PULL_VISIBILITY = 0.7  # share of frames the near hand must be trusted to measure the pull
+# From the deck, a joint under the surface is seen through moving water: the model is
+# less sure of it and its position is bent by refraction. Points at or above this
+# confidence (but below the normal trust bar) are good enough to *infer* the shape of
+# the pull, never to state it as measured. See the "seen through the surface" metrics.
+LOW_CONF = 0.25
 
 REGISTRY = {}  # metric_id -> (view, fn(ctx, cycle) -> float | None | SKIP)
 # Side-view metrics that measure one limb: the near arm or leg (`ctx.s`). From the side
@@ -249,6 +255,17 @@ class Context:
                 i += 1
         self.anchor = "exit"
         self.cycles = _cycles_from_peaks(starts, self.fps)
+
+    def through_surface(self):
+        """This clip again, also trusting the low-confidence points a deck camera gets
+        of joints under the surface. None if even that doesn't show the pull."""
+        if not hasattr(self, "_lenient"):
+            d = self.raw.data.copy()
+            c = d[..., 2]
+            c[(c >= LOW_CONF) & (c < CONF)] = CONF
+            lc = Context(PoseTrack(d, self.raw.fps, (self.raw.W, self.raw.H), self.raw.view, dict(self.raw.meta)))
+            self._lenient = lc if lc.anchor == "pull" else None
+        return self._lenient
 
     def _plateau_end(self, i):
         sm, peak = self.reach_sm, self.reach_sm[i]
@@ -659,6 +676,57 @@ def exit_reappear_position(ctx, cyc):
     ref = "spine_at_waist" if ctx.tr.ok("spine_at_waist")[a] else f"{s}_hip"
     x = _nanmed(ctx.fwd(f"{s}_wrist", ref)[a:a + 3])
     return _val(-x / ctx.torso)
+
+
+def _through_surface(fn):
+    """`fn`, measured on the clip as seen through the surface: for the stroke cycle of
+    that reading that overlaps this one the most."""
+    def run(ctx, cyc):
+        if ctx.anchor == "pull":      # the pull was seen properly: the direct metric covers it
+            return fn(ctx, cyc)
+        lc = ctx.through_surface()
+        if lc is None:
+            return None
+        a, b = cyc
+        best, overlap = None, 0
+        for c in lc.cycles:
+            o = min(b, c[1]) - max(a, c[0])
+            if o > overlap:
+                best, overlap = c, o
+        if best is None or overlap < 0.5 * (b - a):
+            return None
+        return fn(lc, best)
+    run.__doc__ = fn.__doc__
+    return run
+
+
+# Inferred from above the water. Same geometry as the direct pull metrics, read from
+# what a deck camera can make out below the surface. Used as proxy evidence only.
+metric("catch_upper_arm_angle_est", SIDE, sided=True)(_through_surface(catch_upper_arm_angle))
+metric("mid_pull_elbow_angle_est", SIDE, sided=True)(_through_surface(mid_pull_elbow_angle))
+
+
+@metric("glide_time", SIDE, sided=True)
+def glide_time(ctx, cyc):
+    """Seconds per stroke the near hand sits still out in front before it starts to pull:
+    the longest stretch where the hand is ahead of the head and within a tenth of its
+    full reach. Happens just under the surface, so a deck camera sees it."""
+    a, b = cyc
+    s = ctx.s
+    reach = ctx.fwd(f"{s}_wrist", f"{s}_shoulder")[a:b]
+    ahead = ctx.fwd(f"{s}_wrist", "top_of_head")[a:b]
+    if (~np.isnan(reach)).sum() < 3 or not ctx.tr.ok("top_of_head")[a:b].mean() >= 0.6:
+        return None
+    top = np.nanmax(reach)
+    if not top > 0:
+        return None
+    still = np.nan_to_num(reach, nan=-np.inf) >= 0.9 * top
+    still &= np.nan_to_num(ahead, nan=-1.0) > 0
+    longest = run = 0
+    for v in still:
+        run = run + 1 if v else 0
+        longest = max(longest, run)
+    return _val(longest / ctx.fps)
 
 
 @metric("lead_hand_fraction", SIDE, sided=True)

@@ -299,7 +299,8 @@ def truth3d(sw, t):
 
 # ------------------------------------------------------------------ public
 def generate(view, swimmer=None, *, duration_s=12.0, fps=30.0, size=(1920, 1080),
-             facing="right", camera="underwater", quality="typical", seed=0, t0=0.0, near="r"):
+             facing="right", camera="underwater", quality="typical", seed=0, t0=0.0, near="r",
+             refraction=0.0):
     """
     A synthetic PoseTrack for one camera view of the swimmer.
 
@@ -310,6 +311,9 @@ def generate(view, swimmer=None, *, duration_s=12.0, fps=30.0, size=(1920, 1080)
             A camera on the swimmer's left sees them travel the other way, so a
             physical clip pairs near="r" with facing="right" and near="l" with "left".
     t0:     start time in seconds, so two views can come from different laps.
+    refraction: deck camera only. How much the surface distorts what is under it:
+            0 = not at all; 0.25 = everything below the surface looks a quarter shallower
+            than it is and wobbles more the deeper it sits, as through real water.
     """
     if view not in (SIDE, HEAD_ON):
         raise ValueError(f"view must be {SIDE!r} or {HEAD_ON!r}")
@@ -347,6 +351,9 @@ def generate(view, swimmer=None, *, duration_s=12.0, fps=30.0, size=(1920, 1080)
         d = np.clip(J[..., 1] - SURFACE_Y, 0, None)
         fade = np.where(d <= 0.2, 1 - 0.5 * d / 0.2, np.maximum(0.35, 0.5 - (d - 0.2) * 1.5))
         conf = conf * fade
+        if refraction:
+            px[..., 1] -= refraction * d * scale * W                      # looks shallower
+            px += rng.normal(0, 1, px.shape) * (0.012 * W * refraction * d / 0.4)[..., None]   # and wobbles
     conf *= rng.uniform(0.96, 1.0, conf.shape)
     px += rng.normal(0, jitter * W, px.shape)
 
@@ -377,7 +384,8 @@ def generate(view, swimmer=None, *, duration_s=12.0, fps=30.0, size=(1920, 1080)
 
 
 def generate_down_and_back(swimmer=None, *, lap_s=10.0, turn_s=2.5, fps=30.0, size=(1920, 1080),
-                           camera="underwater", quality="typical", seed=0, t0=0.0, first_near="r"):
+                           camera="underwater", quality="typical", seed=0, t0=0.0, first_near="r",
+                           refraction=0.0):
     """
     One side-view clip of a 50: down the pool, a turn, and back.
 
@@ -389,7 +397,7 @@ def generate_down_and_back(swimmer=None, *, lap_s=10.0, turn_s=2.5, fps=30.0, si
     sw = swimmer or Swimmer()
     second = "l" if first_near == "r" else "r"
     face = {"r": "right", "l": "left"}
-    kw = dict(fps=fps, size=size, camera=camera, quality=quality)
+    kw = dict(fps=fps, size=size, camera=camera, quality=quality, refraction=refraction)
     a = generate(SIDE, sw, duration_s=lap_s, facing=face[first_near], near=first_near,
                  seed=seed, t0=t0, **kw)
     b = generate(SIDE, sw, duration_s=lap_s, facing=face[second], near=second,

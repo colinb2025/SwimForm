@@ -353,11 +353,39 @@ def _upload_ctx(user, problems=None):
             "collecting": os.environ.get("SWIMFORM_POSE", "synthetic") == "collect"}
 
 
+def first_run_on():
+    """Show the filming walkthrough before a first upload? SWIMFORM_FIRST_RUN=0 turns it off."""
+    return os.environ.get("SWIMFORM_FIRST_RUN", "1") != "0"
+
+
 @app.get("/analyses/new", response_class=HTMLResponse)
 def upload_page(request: Request):
+    user = request.state.user
+    if user is None:
+        return login_redirect(request)
+    if first_run_on() and user.trained_at is None:
+        return RedirectResponse("/start", status_code=303)
+    return page(request, "upload.html", _upload_ctx(user))
+
+
+@app.get("/start", response_class=HTMLResponse)
+def start_page(request: Request):
     if request.state.user is None:
         return login_redirect(request)
-    return page(request, "upload.html", _upload_ctx(request.state.user))
+    return page(request, "start.html")
+
+
+@app.post("/start")
+def start_done(request: Request):
+    user = request.state.user
+    if user is None:
+        return login_redirect(request)
+    with db.session() as s:
+        row = s.get(db.User, user.id)
+        if row.trained_at is None:
+            row.trained_at = db.now()
+            s.commit()
+    return RedirectResponse("/analyses/new", status_code=303)
 
 
 @app.post("/analyses")

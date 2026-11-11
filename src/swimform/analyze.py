@@ -41,7 +41,8 @@ from .schema import BOTH, HEAD_ON, SIDE, VIEWS
 
 # Resolved from the package location so the default works from any directory.
 DEFAULT_RULES = str(Path(__file__).resolve().parents[2] / "rules" / "swim_rules.xlsx")
-MIN_CYCLES = 3          # fewer readable cycles than this and a metric is not assessed
+MIN_CYCLES = 2          # fewer readable cycles than this and a metric is not assessed: technique
+                        # faults are habits, so two or three strokes show them
 MIN_USABLE_FRAC = 0.5   # ...or if under half the detected cycles were readable
 
 METHOD = {

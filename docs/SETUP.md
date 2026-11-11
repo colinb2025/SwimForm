@@ -163,6 +163,7 @@ Cloudflare R2 or Backblaze B2. Keep the bucket private; the app never hands out 
 | `SWIMFORM_ADMINS` | – | Emails that can open `/admin` |
 | `SWIMFORM_SIGNUP` | `open` | `open`, `invite` or `closed` |
 | `SWIMFORM_REVIEW` | `0` | `1` = reports wait for an admin's release |
+| `SWIMFORM_FIRST_RUN` | `1` | `0` = skip the filming walkthrough before a first upload |
 | `SWIMFORM_FREE_ANALYSES` | no limit | Free analyses per account per month |
 | `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`, `STRIPE_WEBHOOK_SECRET`, `SWIMFORM_PRICE_LABEL` | – | Payments |
 | `SWIMFORM_STORAGE`, `S3_BUCKET`, `S3_ENDPOINT_URL`, `AWS_*` | `local` | Where clips and reports are kept |

@@ -1,7 +1,7 @@
 """
 Any mix of clips, two at a minimum (one side, one head-on): each measurement comes from
-the clip that read it best, a bad extra clip never sinks a good upload, and the report
-says how to get more from the next one.
+the clip that read it best, a bad extra clip never sinks a good upload, and a first-time uploader
+is shown how to film before they start.
 """
 import io
 import re
@@ -41,11 +41,11 @@ def state(report, iid):
 
 
 # ------------------------------------------------------------------ analysis
-def test_an_underwater_side_clip_turns_couldnt_check_into_a_measurement(rules):
+def test_an_underwater_side_clip_turns_an_inference_into_a_measurement(rules):
     faults = {"dropped_elbow": 1.0}
     deck = analyze(clips(faults), rules, top_n=20)
     both = analyze(clips(faults, side=("deck", "underwater")), rules, top_n=20)
-    assert state(deck, "dropped_elbow") == "unchecked"
+    assert state(deck, "dropped_elbow") == "flagged:proxy"
     assert state(both, "dropped_elbow") == "flagged:direct"
     m = both["measurements"]["catch_upper_arm_angle"]
     assert m["clip"] == 1 and both["clips"][SIDE][1]["measurements_used"] > 0     # taken from the underwater clip
@@ -133,7 +133,7 @@ def test_any_mix_with_one_clip_per_view_is_analysed(client, slots):
     assert r.status_code == 303
     v, record = view(client, r)
     assert [c["slot"] for c in record["clips"]] == list(slots) and all(c["used"] for c in record["clips"])
-    assert len(v["footage"]["clips"]) == len(slots)
+    assert v["unused_clips"] == []
 
 
 @pytest.mark.parametrize("slots, missing", [
@@ -154,7 +154,7 @@ def test_a_bad_extra_clip_is_set_aside_not_fatal(client):
     bad = next(c for c in record["clips"] if c["slot"] == "side_uw")
     assert not bad["used"] and "swapped" in bad["problems"][0]
     page = text(client.get(r.headers["location"]).text)
-    assert "Side view, underwater Couldn't use" in page and "Your stroke report" in page
+    assert "We left out your side view, underwater clip." in page and "Your stroke report" in page
 
 
 def test_no_usable_clip_for_a_view_is_still_rejected_with_reasons(client):
@@ -164,27 +164,25 @@ def test_no_usable_clip_for_a_view_is_still_rejected_with_reasons(client):
     assert "Above-water clip" in page and "Underwater clip" in page
 
 
-def test_report_says_which_extra_clip_would_measure_more(client):
+def test_report_does_not_coach_the_next_upload(client):
     r = send(client, side="lap_deck.mp4", head_on="wall_deck.mp4")
-    v, _ = view(client, r)
-    ups = {u["clip"]: u["issues"] for u in v["footage"]["upgrades"]}
-    assert "Dropped elbow" in ups["an underwater side clip"] and "Straight-arm pull" in ups["an underwater side clip"]
     page = text(client.get(r.headers["location"]).text)
-    assert "Get more from your next upload" in page and "Add an underwater side clip" in page
-
-    r = send(client, side="lap_deck.mp4", side_uw="lap2.mp4", head_on="wall_deck.mp4", head_on_uw="wall2.mp4")
-    v, _ = view(client, r)
-    assert v["footage"]["upgrades"] == []                        # nothing left to add
+    assert "next upload" not in page and "We left out" not in page
 
 
-def test_clip_tips_are_specific():
-    from app.presenter import _clip_tips
-    good = {"view": "side", "passes": 2, "cycles": 16, "visible": 0.97, "fps": 60, "size": [1920, 1080]}
-    assert _clip_tips(good) == []
-    tips = " ".join(_clip_tips(dict(good, passes=1, cycles=5, visible=0.6, fps=30, size=[640, 360])))
-    for phrase in ("only shows one direction", "We read 5 strokes", "40% of the frames", "Set the camera to 60", "low resolution"):
-        assert phrase in tips
-    assert "two or three lengths" in " ".join(_clip_tips(dict(good, view="head_on", passes=None, cycles=6)))
+def test_first_upload_goes_through_the_filming_walkthrough_once(client, monkeypatch):
+    monkeypatch.setenv("SWIMFORM_FIRST_RUN", "1")
+    r = client.get("/analyses/new", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/start"
+    page = text(client.get("/start").text)
+    assert "Before your first upload" in page and "A few clean strokes is enough" in page
+    assert "Above-water clips are all you need" in page
+    assert client.post("/start", follow_redirects=False).headers["location"] == "/analyses/new"
+    assert client.get("/analyses/new", follow_redirects=False).status_code == 200      # never shown again
+    assert client.get("/start").status_code == 200                                     # but still reachable
+    from fastapi.testclient import TestClient as TC
+    from app.main import app
+    assert TC(app).get("/start", follow_redirects=False).headers["location"].startswith("/login")
 
 
 def test_old_reports_without_clip_records_still_open(client):
@@ -197,4 +195,4 @@ def test_old_reports_without_clip_records_still_open(client):
     record.pop("clips")
     path.write_text(json.dumps(record))
     page = client.get(f"/analyses/{aid}")
-    assert page.status_code == 200 and "Get more from your next upload" not in page.text
+    assert page.status_code == 200 and "We left out" not in page.text

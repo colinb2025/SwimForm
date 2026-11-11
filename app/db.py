@@ -39,6 +39,8 @@ class User(Base):
     # May we use this account's clips to train the pose model? Opt-in, changeable in settings.
     train_consent: Mapped[bool] = mapped_column(Boolean, default=False)
     terms_accepted: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # When they went through the filming walkthrough shown before a first upload.
+    trained_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     invite_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
 

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% from "_macros.html" import band, mini_diagram %}
+{% block title %}Before your first upload · SwimForm{% endblock %}
+{% block band %}
+{{ band("Before your first upload", "Two minutes now saves a wasted trip to the pool. How you film decides how much we can measure.") }}
+{% endblock %}
+{% block content %}
+<div class="steps">
+  <section class="card">
+    <span class="step-num" aria-hidden="true"></span>
+    <h2>Film two clips of easy freestyle</h2>
+    <ul class="list-dots">
+      <li>One from the side and one head-on. We need both: each angle sees what the other can't.</li>
+      <li>A few clean strokes is enough. One easy 50 for the side clip and one length for the head-on clip covers it.</li>
+      <li>Swim the way you normally do: steady pace, normal breathing, no fins, paddles or pull buoy.</li>
+    </ul>
+  </section>
+  <section class="card">
+    <span class="step-num" aria-hidden="true"></span>
+    <h2>{{ mini_diagram("side") }}The side clip</h2>
+    <ul class="list-dots">
+      <li>Have someone stand on the deck beside your lane, pointing the phone straight across it, not at an angle.</li>
+      <li>Swim down and back. They walk alongside to keep you in the middle of the frame, staying on the same side of the pool.</li>
+      <li>Your whole body in shot, head to feet. No zooming.</li>
+    </ul>
+  </section>
+  <section class="card">
+    <span class="step-num" aria-hidden="true"></span>
+    <h2>{{ mini_diagram("head_on") }}The head-on clip</h2>
+    <ul class="list-dots">
+      <li>From the end wall, in the middle of your lane, as you swim toward the camera.</li>
+      <li>Hold the phone high and point it down the lane. Looking down sees through the surface; a low camera mostly sees glare.</li>
+      <li>Keep it still, and stop filming before you reach the wall.</li>
+    </ul>
+  </section>
+  <section class="card">
+    <span class="step-num" aria-hidden="true"></span>
+    <h2>Set the phone up right</h2>
+    <ul class="list-dots">
+      <li>Sideways (landscape), 1080p, and 60 frames a second if your phone offers it. Not slow motion.</li>
+      <li>Upload the original video file. Screen recordings and copies sent through chat apps lose the detail we measure.</li>
+      <li>Pick a quiet lane, so nobody else is in the shot.</li>
+    </ul>
+  </section>
+  <section class="card">
+    <span class="step-num" aria-hidden="true"></span>
+    <h2>Optional: go underwater</h2>
+    <ul class="list-dots">
+      <li>Above-water clips are all you need. If you have a waterproof pouch or action camera, you can add underwater clips of the same two angles, and we measure the pull directly instead of reading it through the surface.</li>
+    </ul>
+  </section>
+</div>
+<form action="/start" method="post" class="card start-go">
+  <p>You can find all of this again under <a href="/guide">Filming guide</a>.</p>
+  <button type="submit" class="btn btn-primary btn-lg">Got it, upload my clips</button>
+</form>
+{% endblock %}

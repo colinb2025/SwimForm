@@ -147,11 +147,11 @@ def test_clean_swimmer_down_and_back_triggers_nothing(rules, camera, quality, se
 
 
 @pytest.mark.parametrize("arm", ["r", "l"])
-def test_deck_footage_estimates_a_one_arm_short_pull_on_the_right_arm(rules, arm):
+def test_deck_footage_finds_a_one_arm_short_pull_on_the_right_arm(rules, arm):
     report = analyze(session(arm={arm: {"short_pull": 1.0}}, camera="deck", quality="typical", seed=5),
                      rules, top_n=20)
     hit = finding(report, "short_pull")
-    assert hit["evidence"] == "proxy" and hit["arms"]["affected"] == [arm]
+    assert hit["evidence"] == "direct" and hit["arms"]["affected"] == [arm]
 
 
 def test_measurements_carry_both_arms(rules):

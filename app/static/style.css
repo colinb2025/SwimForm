@@ -672,12 +672,19 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0
 .zone .warn { margin: 0; font-size: 0.88rem; }
 @media (max-width: 420px) { .zones { grid-template-columns: 1fr; } }
 
-.footage-list { display: grid; gap: 0; margin-top: 6px; }
-.footage-clip { padding: 14px 0; border-top: 1px solid var(--line); }
-.footage-clip:first-child { border-top: 0; }
-.footage-clip h3 { font-size: 1rem; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
-.footage-clip h3 .pill { margin-left: 0; }
-.footage-facts { color: var(--ink-2); font-size: 0.93rem; margin-top: 2px; }
-.footage-tips { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 4px; color: var(--ink); font-size: 0.95rem; }
-.upgrade { margin-top: 16px; padding: 14px 16px; background: var(--aqua-soft); border-radius: var(--r-md); }
-.upgrade b { display: block; margin-bottom: 2px; }
+
+/* ---------- first-upload training ---------- */
+.steps { display: grid; gap: 16px; counter-reset: step; }
+.steps > .card { margin-top: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 18px; align-items: start; }
+.step-num { counter-increment: step; width: 40px; height: 40px; border-radius: 50%; background: var(--deep); color: #fff; display: grid; place-items: center; font-weight: 700; grid-row: span 2; }
+.step-num::before { content: counter(step); }
+.steps h2 { font-size: 1.15rem; align-self: center; display: flex; align-items: center; gap: 12px; }
+.steps h2 .mini { width: 92px; height: 56px; flex: none; }
+.steps ul { grid-column: 2; margin: 0; }
+.start-go { margin-top: 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; justify-content: space-between; }
+.start-go p { color: var(--ink-2); }
+@media (max-width: 640px) {
+  .steps > .card { grid-template-columns: 1fr; }
+  .step-num { grid-row: auto; }
+  .steps ul { grid-column: 1; }
+}

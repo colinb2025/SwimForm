@@ -4,7 +4,7 @@
    - early warnings for clips that are too short, too long, or filmed vertically
    - real upload progress, then a "measuring" state while the server works */
 (function () {
-  var MIN_S = 12, MAX_S = 120;
+  var MIN_S = 5, MAX_S = 120;
 
   function fmtSeconds(s) {
     return s < 60 ? Math.round(s) + " s" : (s / 60).toFixed(1).replace(".0", "") + " min";
@@ -13,7 +13,7 @@
   function warningsFor(video) {
     var out = [], d = video.duration;
     if (isFinite(d) && d < MIN_S) {
-      out.push("This clip is only " + fmtSeconds(d) + ". We need at least 15 seconds of steady swimming to read enough strokes.");
+      out.push("This clip is only " + fmtSeconds(d) + ". We need at least three full strokes, so it may be too short.");
     } else if (isFinite(d) && d > MAX_S) {
       out.push("This clip is " + fmtSeconds(d) + ". It will work, but trimming it to one 50 of steady swimming is faster.");
     }

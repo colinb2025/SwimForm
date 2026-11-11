@@ -36,3 +36,9 @@ def _test_database(monkeypatch, request):
     yield
     if db._engine is not None:
         db._engine.dispose()
+
+
+@pytest.fixture(autouse=True)
+def _no_first_run_walkthrough(monkeypatch):
+    """Most tests go straight to the upload page; the walkthrough has its own tests."""
+    monkeypatch.setenv("SWIMFORM_FIRST_RUN", "0")

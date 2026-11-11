@@ -90,6 +90,6 @@ def check_clip(tr: PoseTrack, expected_view):
             f"We could only read {cycles} full stroke cycle{'s' if cycles != 1 else ''}. "
             + ("Film a 50 (down the pool and back) of steady swimming. The turn in the middle is fine."
                if expected_view == SIDE else
-               "Film at least 15 seconds of steady swimming, without turns or stops."))
+               "Film one full length of steady swimming, without stops."))
     return {"ok": not problems, "problems": problems, "view_guess": guess, "visible": visible, "cycles": cycles,
             "passes": P.summary(passes) if passes is not None else None}

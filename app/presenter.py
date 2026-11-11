@@ -79,6 +79,8 @@ def _fmt(value, unit):
         return f"{value:.2f}"
     if unit == "deg":
         return f"{round(value)}°"
+    if unit == "s":
+        return f"{value:.2f} s"
     return f"{round(value, 1)}{UNITS.get(unit, '')}"
 
 
@@ -189,75 +191,18 @@ def build(record, rules):
         "table": table, "stroke_rate": round(rate) if rate else None,
         "fused": bool(s3.get("used")), "fused_agreement": s3.get("view_agreement"),
         "synthetic": record.get("pose_provider") == "synthetic",
-        "footage": footage(record, rules, status),
+        "unused_clips": unused_clips(record),
     }
 
 
 CLIP_NAMES = {("side", "above"): "Side view, above water", ("side", "underwater"): "Side view, underwater",
               ("head_on", "above"): "Head-on view, above water", ("head_on", "underwater"): "Head-on view, underwater"}
-CLIP_ASK = {("side", "underwater"): "an underwater side clip", ("head_on", "underwater"): "an underwater head-on clip",
-            ("side", "above"): "an above-water side clip", ("head_on", "above"): "an above-water head-on clip"}
-GOOD_FPS, GOOD_HEIGHT, GOOD_CYCLES, GOOD_VISIBLE = 50, 720, 12, 0.85
 
 
-def _clip_tips(c):
-    """Specific things that would make this clip measure better next time."""
-    tips = []
-    if c["view"] == SIDE and c.get("passes") == 1:
-        tips.append("It only shows one direction. Film a 50, down and back, so each arm gets a length facing the camera.")
-    if c["cycles"] < GOOD_CYCLES:
-        more = "Swim a 100 instead of a 50" if c["view"] == SIDE else "Film two or three lengths"
-        tips.append(f"We read {c['cycles']} strokes. {more} and every measurement averages over more of them.")
-    if c["visible"] < GOOD_VISIBLE:
-        tips.append(f"We lost sight of you in {round(100 * (1 - c['visible']))}% of the frames. Get the camera closer, "
-                    "keep other swimmers out of shot, and avoid filming into the light.")
-    if c["fps"] and c["fps"] < GOOD_FPS:
-        tips.append(f"It was filmed at {round(c['fps'])} frames a second. Set the camera to 60: fast moments like the "
-                    "hand entering the water are much sharper.")
-    if min(c["size"]) < GOOD_HEIGHT:
-        tips.append("The video is low resolution. Film in 1080p, and send the original file, not a screen recording or a copy from a chat app.")
-    return tips
-
-
-def footage(record, rules, status):
-    """How each uploaded clip did, and which extra clip would let us measure more.
-    None for reports made before clips were tracked."""
-    if not record.get("clips"):
-        return None
-    clips = []
-    for c in record["clips"]:
-        facts = [f"{c['cycles']} strokes read", f"you were in view {round(100 * c['visible'])}% of the time"]
-        if c.get("seconds"):
-            facts.insert(0, f"{round(c['seconds'])} seconds")
-        if c["fps"]:
-            facts.append(f"{round(c['fps'])} frames a second")
-        clips.append({"name": CLIP_NAMES[(c["view"], c["water"])], "file": c["file"], "used": c["used"],
-                      "facts": ", ".join(facts) if c["used"] else None,
-                      "problems": [] if c["used"] else c["problems"],
-                      "tips": _clip_tips(c) if c["used"] else []})
-
-    # Which kinds of clip would turn an estimate or a "couldn't check" into a measurement.
-    have = {(c["view"], c["water"]) for c in record["clips"] if c["used"]}
-    metrics = {m["metric_id"]: m for m in rules["metrics"]}
-    issues = {i["issue_id"]: i["name"] for i in rules["issues"]}
-    groups = {}
-    for r in rules["issue_rules"]:
-        if (r.get("evidence") or "direct") == "direct":
-            groups.setdefault((r["issue_id"], r.get("rule_group") or 1), []).append(r["metric_id"])
-    wanted = {}
-    for (iid, _), mids in groups.items():
-        if status.get(iid) not in ("estimated", "clear_est", "unchecked"):
-            continue
-        for mid in mids:
-            m = metrics.get(mid)
-            if not m or m["view"] not in (SIDE, HEAD_ON):
-                continue
-            kind = (m["view"], "underwater" if m.get("water") == "below" else "above")
-            if kind not in have and kind[1] == "underwater":
-                wanted.setdefault(kind, set()).add(issues[iid])
-    upgrades = [{"clip": CLIP_ASK[k], "issues": sorted(v)} for k, v in sorted(wanted.items(), reverse=True)]
-    return {"clips": clips, "upgrades": upgrades,
-            "all_good": all(c["used"] and not c["tips"] for c in clips) and not upgrades}
+def unused_clips(record):
+    """Clips that failed their check and were left out of the analysis, with why."""
+    return [{"name": CLIP_NAMES[(c["view"], c["water"])], "problems": c["problems"]}
+            for c in record.get("clips") or [] if not c["used"]]
 
 
 def coverage(rules):
