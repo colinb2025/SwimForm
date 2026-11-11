@@ -186,6 +186,14 @@ def complete_reset(token: str, new_password: str):
         return u
 
 
+def previous_report(row):
+    """The same swimmer's finished report before this one, if any."""
+    with db.session() as s:
+        return s.scalar(select(db.Analysis).where(
+            db.Analysis.user_id == row.user_id, db.Analysis.status == "done", db.Analysis.id != row.id,
+            db.Analysis.created < row.created).order_by(db.Analysis.created.desc()).limit(1))
+
+
 def owned_analysis(user, aid):
     """The Analysis row if this user owns it, else None (which the app shows as 'not found')."""
     if user is None:

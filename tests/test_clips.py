@@ -132,36 +132,52 @@ def test_any_mix_with_one_clip_per_view_is_analysed(client, slots):
     r = send(client, **slots)
     assert r.status_code == 303
     v, record = view(client, r)
-    assert [c["slot"] for c in record["clips"]] == list(slots) and all(c["used"] for c in record["clips"])
+    assert sorted(c["slot"] for c in record["clips"]) == sorted(slots) and all(c["used"] for c in record["clips"])
     assert v["unused_clips"] == []
 
 
 @pytest.mark.parametrize("slots, missing", [
-    ({"side": "a.mp4", "side_uw": "b.mp4"}, "Add a head-on clip"),
-    ({"head_on_uw": "b.mp4"}, "Add a side-view clip"),
-    ({}, "Add a side-view clip"),
+    ({"side": "a.mp4", "side_uw": "b.mp4"}, "Add your head-on clip."),
+    ({"head_on_uw": "b.mp4"}, "Add your side-view clip."),
+    ({}, "Add your side-view clip."),
 ])
 def test_two_clips_of_the_same_view_are_not_enough(client, slots, missing):
     r = send(client, **slots)
     assert r.status_code == 422 and missing in r.text
 
 
-def test_a_bad_extra_clip_is_set_aside_not_fatal(client):
-    """The underwater 'side' clip is really a head-on view: it's left out and the report says so."""
+def test_an_extra_clip_in_the_wrong_box_is_used_where_it_belongs(client):
+    """The underwater 'side' clip is really a head-on view: it becomes a second head-on clip."""
     r = send(client, side="lap.mp4", head_on="wall.mp4", side_uw="front_view.mp4")
     assert r.status_code == 303
     v, record = view(client, r)
-    bad = next(c for c in record["clips"] if c["slot"] == "side_uw")
-    assert not bad["used"] and "swapped" in bad["problems"][0]
+    moved = next(c for c in record["clips"] if c["slot"] == "side_uw")
+    assert moved["used"] and moved["view"] == "head_on" and v["unused_clips"] == []
+
+
+def test_a_bad_extra_clip_is_set_aside_not_fatal(client, monkeypatch):
+    from app import pipeline
+    real = pipeline.check_clip
+
+    def check(tr, expected):
+        c = real(tr, expected)
+        if tr.meta.get("camera") == "deck":      # stand-in for a clip the swimmer can't be found in
+            return dict(c, ok=False, problems=["We could only find the swimmer in 20% of this clip."])
+        return c
+    monkeypatch.setattr(pipeline, "check_clip", check)
+    r = send(client, side="lap.mp4", head_on="wall.mp4", side_uw="murky_deck.mp4")
+    v, record = view(client, r)
+    assert [c["used"] for c in record["clips"]] == [True, True, False]
     page = text(client.get(r.headers["location"]).text)
-    assert "We left out your side view, underwater clip." in page and "Your stroke report" in page
+    assert "We left out your underwater side-view clip." in page and "20% of this clip" in page
+    assert "Your stroke report" in page
 
 
 def test_no_usable_clip_for_a_view_is_still_rejected_with_reasons(client):
     r = send(client, side="front_view.mp4", side_uw="head_cam.mp4", head_on="wall.mp4")
     page = text(client.get(r.headers["location"]).text)
     assert "We couldn't use these clips" in page
-    assert "Above-water clip" in page and "Underwater clip" in page
+    assert "Both of your clips are head-on views. We also need a side clip" in page
 
 
 def test_report_does_not_coach_the_next_upload(client):

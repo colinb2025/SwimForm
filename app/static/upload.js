@@ -102,7 +102,7 @@
       var box = document.createElement("div");
       box.className = "notice notice-error problem";
       box.setAttribute("role", "alert");
-      box.innerHTML = "<div><p>Add a " + card.getAttribute("data-view") + " clip: above water, underwater, or both.</p></div>";
+      box.innerHTML = "<div><p>Add your " + card.getAttribute("data-view").replace(" view", "") + " clip.</p></div>";
       card.querySelector(".zones").before(box);
       missing = missing || card;
     });

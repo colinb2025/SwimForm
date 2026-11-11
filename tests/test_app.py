@@ -94,18 +94,30 @@ def test_measurement_names_are_sentence_case(client):
         assert row["name"][0].isupper(), row["name"]
 
 
-def test_swapped_clips_are_caught_with_a_fix(client):
-    r = upload(client, side=("headon_lap.mp4", b"a"), head_on=("front.mov", b"b"))
+def test_swapped_clips_are_sorted_out_for_the_swimmer(client):
+    """A head-on clip in the side box and a side clip in the head-on box: just use them."""
+    r = upload(client, side=("headon_lap.mp4", b"a"), head_on=("side_lap.mov", b"b"))
+    assert r.status_code == 303
+    page = text(client.get(r.headers["location"]).text)
+    assert "Your stroke report" in page and "couldn't use" not in page
+    from app import pipeline
+    record = pipeline.load(r.headers["location"].split("/")[-1])
+    assert {c["slot"]: c["view"] for c in record["clips"]} == {"side": "head_on", "head_on": "side"}
+
+
+def test_two_clips_of_the_same_angle_are_explained(client):
+    r = upload(client, side=("lap.mp4", b"a"), head_on=("side_again.mov", b"b"))
     assert r.status_code == 303                   # clip checks run in the job, after upload
-    page = client.get(r.headers["location"])
-    assert "We couldn't use these clips" in text(page.text)
-    assert "Did the two clips get swapped?" in text(page.text)
+    page = text(client.get(r.headers["location"]).text)
+    assert "We couldn't use these clips" in page
+    assert "Both of your clips are side views. We also need a head-on clip" in page
+    assert "This clip was fine" in page           # the side clip itself needs no change
     assert "Clips need re-filming" in text(client.get("/").text)
 
 
 def test_missing_and_non_video_files_are_rejected(client):
     r = upload(client, head_on=None)
-    assert r.status_code == 422 and "Add a head-on clip: above water, underwater, or both." in r.text
+    assert r.status_code == 422 and "Add your head-on clip." in r.text
     r = upload(client, side=("notes.txt", b"x"))
     assert r.status_code == 422 and "look like a video" in text(r.text)
     r = upload(client, side=("empty.mp4", b""))
@@ -191,8 +203,8 @@ def test_guide_lists_what_each_clip_checks(client):
     r = client.get("/guide")
     assert r.status_code == 200
     t = text(r.text)
-    assert "How to film your clips" in t and "Needs an underwater clip" in t
-    assert "Dropped elbow" in t and "Crossover entry" in t
+    assert "How to film your clips" in t and "Estimated, unless you add an underwater clip" in t
+    assert "Elbow at the catch" in t and "Hand entry line" in t
 
 
 def test_fonts_are_self_hosted(client):
@@ -254,3 +266,33 @@ def test_report_groups_fixes_as_pool_and_mobility_and_strength(client, monkeypat
     assert "External rotation at 90°" in page and "Overhead kettlebell carry" in page and "Long dog" in page
     assert "This is training, not treatment" in page
     assert 'class="more-drills"' in html                             # past the first three, tucked away
+
+
+def test_second_report_says_what_changed_since_the_first(client, monkeypatch):
+    from app import pipeline
+    swimmer = {"now": Swimmer({"dropped_elbow": 1.0, "high_head_position": 1.0}, cycle_s=1.6)}
+    monkeypatch.setattr(pipeline, "_synthetic_swimmer", lambda seed: swimmer["now"])
+    first = upload(client, side=("a.mp4", b"1"), head_on=("b.mov", b"2"))
+    page = text(client.get(first.headers["location"]).text)
+    assert "Since your last report" not in page and "What now?" in page
+
+    swimmer["now"] = Swimmer({"dropped_elbow": 1.0, "crossover_entry": 1.0}, cycle_s=1.6)   # head fixed, new fault
+    second = upload(client, side=("c.mp4", b"3"), head_on=("d.mov", b"4"))
+    page = text(client.get(second.headers["location"]).text)
+    assert "Since your last report" in page and "Fixed: Head position." in page
+    assert "1 still to work on." in page and "New this time: Crossover entry." in page
+    assert "Also in your last report" in page and "New since your last report" in page
+    home = text(client.get("/").text)
+    assert "2 to work on: " in home and "Dropped elbow" in home
+    assert "Since your last report" not in text(client.get(first.headers["location"]).text)   # the first has nothing before it
+
+
+def test_checks_list_uses_plain_names_for_what_passed(client, monkeypatch):
+    from app import pipeline
+    monkeypatch.setattr(pipeline, "_synthetic_swimmer", lambda seed: Swimmer({"dropped_elbow": 1.0}, cycle_s=1.6))
+    r = upload(client, side=("a.mp4", b"1"), head_on=("b.mov", b"2"))
+    html = client.get(r.headers["location"]).text
+    checks = text(html.split('id="all-h"')[1].split("</section>")[0])
+    assert "Dropped elbow" in checks                       # a fault keeps its name
+    assert "Hand entry line" in checks and "Kick width" in checks
+    assert "Crossover entry" not in checks and "Scissor kick" not in checks   # fault names don't sit under "Looks good"

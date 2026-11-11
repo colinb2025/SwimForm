@@ -31,10 +31,10 @@
   {% endif %}
 
   <section class="card setting" aria-labelledby="s-consent">
-    <div class="setting-text"><h2 id="s-consent">Improving SwimForm</h2><p>Whether the "use these clips to improve the model" box starts ticked when you upload. You can still change it for each upload. <a href="/privacy">How this works</a></p></div>
+    <div class="setting-text"><h2 id="s-consent">Improving SwimForm</h2><p>Letting us learn from your clips makes the analysis better for everyone. Only our team sees them. <a href="/privacy">How this works</a></p></div>
     <form action="/account/consent" method="post" class="stack">
       <label class="consent" style="margin:0"><input type="checkbox" name="train_consent" value="1" {% if user.train_consent %}checked{% endif %}>
-        <span>Start with the box ticked</span></label>
+        <span>Use my clips to improve SwimForm. I can still change this on each upload.</span></label>
       <div><button type="submit" class="btn btn-secondary">Save</button></div>
     </form>
   </section>

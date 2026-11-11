@@ -122,6 +122,8 @@ class Analysis(Base):
     problems: Mapped[str] = mapped_column(Text, default="")
     # A personal note from the reviewing coach, shown at the top of the report.
     coach_note: Mapped[str] = mapped_column(Text, default="")
+    # The top findings by name, for the reports list.
+    headline: Mapped[str] = mapped_column(String(300), default="")
     # The swimmer agreed, for these clips, that we may use them to train the pose model.
     train_ok: Mapped[bool] = mapped_column(Boolean, default=False)
 

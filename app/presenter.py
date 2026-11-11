@@ -103,7 +103,9 @@ def build(record, rules):
         status[iid] = "unchecked"
 
     lanes = sorted(
-        [{"issue_id": iid, "name": issues[iid]["name"], "status": st, "label": STATUS[st]}
+        [{"issue_id": iid, "name": issues[iid]["name"], "status": st, "label": STATUS[st],
+          # What was checked, in neutral words ("Hand entry line"), for the rows that aren't faults.
+          "check": issues[iid].get("check_name") or issues[iid]["name"]}
          for iid, st in status.items() if iid in issues],
         key=lambda l: (ORDER.index(l["status"]), l["name"]))
 
@@ -192,11 +194,37 @@ def build(record, rules):
         "fused": bool(s3.get("used")), "fused_agreement": s3.get("view_agreement"),
         "synthetic": record.get("pose_provider") == "synthetic",
         "unused_clips": unused_clips(record),
+        "headline": ", ".join(p["name"] for p in priorities),
     }
 
 
-CLIP_NAMES = {("side", "above"): "Side view, above water", ("side", "underwater"): "Side view, underwater",
-              ("head_on", "above"): "Head-on view, above water", ("head_on", "underwater"): "Head-on view, underwater"}
+FLAGGED = ("flagged", "estimated")
+CLEAR = ("clear", "clear_est")
+
+
+def since_last(view, previous):
+    """What changed between the previous report and this one. Marks each finding on
+    `view` as new or repeated and returns the summary line's parts."""
+    before = {l["issue_id"]: l["status"] for l in previous["lanes"]}
+    fixed = [l["check"] for l in view["lanes"] if l["status"] in CLEAR and before.get(l["issue_id"]) in FLAGGED]
+    new, still = [], 0
+    for l in view["lanes"]:
+        if l["status"] not in FLAGGED:
+            continue
+        if before.get(l["issue_id"]) in FLAGGED:
+            still += 1
+        elif before.get(l["issue_id"]) in CLEAR:
+            new.append(l["name"])
+    for p in view["priorities"]:
+        was = before.get(p["id"])
+        p["since"] = "repeat" if was in FLAGGED else "new" if was in CLEAR else None
+    return {"iso": previous["created_iso"], "date": previous["created"], "id": previous["id"],
+            "fixed": fixed, "new": new, "still": still}
+
+
+
+CLIP_NAMES = {("side", "above"): "side-view", ("side", "underwater"): "underwater side-view",
+              ("head_on", "above"): "head-on", ("head_on", "underwater"): "underwater head-on"}
 
 
 def unused_clips(record):
@@ -214,8 +242,8 @@ def coverage(rules):
         groups.setdefault(key, {"rows": [], "proxy": False})
         groups[key]["rows"].append(r["metric_id"])
         groups[key]["proxy"] |= r.get("evidence") == "proxy"
-    names = {i["issue_id"]: i["name"] for i in rules["issues"]}
-    out = {"side": [], "head_on": [], "both": [], "underwater": []}
+    names = {i["issue_id"]: i.get("check_name") or i["name"] for i in rules["issues"]}
+    out = {"side": [], "head_on": [], "both": [], "underwater": [], "underwater_only": []}
     for iid, name in names.items():
         direct = [g["rows"] for (i, _), g in groups.items() if i == iid and not g["proxy"]]
         proxy = [g["rows"] for (i, _), g in groups.items() if i == iid and g["proxy"]]
@@ -240,13 +268,16 @@ def coverage(rules):
                 break
         if not placed:
             estimable = any(above(rows) for rows in proxy)
-            out["underwater"].append(name + (" (estimated from above the water)" if estimable else ""))
+            out["underwater" if estimable else "underwater_only"].append(name)
     return [
-        {"key": "side", "title": "Side view", "note": "Visible from above the water.", "issues": sorted(out["side"])},
-        {"key": "head_on", "title": "Head-on view", "note": "Visible from above the water.", "issues": sorted(out["head_on"])},
-        {"key": "both", "title": "Both clips together", "note": "Combined into a 3D picture of your typical stroke.",
+        {"key": "side", "title": "From your side clip", "note": "Measured from above the water.", "issues": sorted(out["side"])},
+        {"key": "head_on", "title": "From your head-on clip", "note": "Measured from above the water.", "issues": sorted(out["head_on"])},
+        {"key": "both", "title": "From both clips together", "note": "Combined into a 3D picture of your typical stroke.",
          "issues": sorted(out["both"])},
-        {"key": "underwater", "title": "Needs an underwater clip",
-         "note": "These happen under the surface. Without an underwater clip, some can be estimated; the rest we'll tell you we couldn't check.",
+        {"key": "underwater", "title": "Estimated, unless you add an underwater clip",
+         "note": "These happen under the surface. From above the water we estimate them and mark them \"estimated\" in your report; an optional underwater clip measures them directly.",
          "issues": sorted(out["underwater"])},
+        {"key": "underwater", "title": "Only with an underwater clip",
+         "note": "We can't judge these from above the water, and the report will say so.",
+         "issues": sorted(out["underwater_only"])},
     ]

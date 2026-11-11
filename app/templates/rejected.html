@@ -11,11 +11,11 @@
   <section class="card">
     <h2 style="margin-bottom:12px">{{ title }}</h2>
     {% set found = [] %}
-    {% for key, label in [(slot, "Above-water clip"), (slot ~ "_uw", "Underwater clip")] if problems.get(key) %}
+    {% for key, label in [(slot, ""), (slot ~ "_uw", "Underwater clip: ")] if problems.get(key) %}
     {% set _ = found.append(1) %}
-    <div class="notice notice-error" role="alert" style="margin-top:10px"><div><p><b>{{ label }}</b></p>{% for p in problems[key] %}<p>{{ p }}</p>{% endfor %}</div></div>
+    <div class="notice notice-error" role="alert" style="margin-top:10px"><div>{% for p in problems[key] %}<p>{% if label %}<b>{{ label }}</b>{% endif %}{{ p }}</p>{% endfor %}</div></div>
     {% endfor %}
-    {% if not found %}<p class="muted">Fine as filmed.</p>{% endif %}
+    {% if not found %}<p class="muted">This clip was fine. You can upload it again as it is.</p>{% endif %}
   </section>
   {% endfor %}
 </div>

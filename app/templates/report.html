@@ -27,7 +27,7 @@
 </section>
 {% endif %}
 {% for c in r.unused_clips %}
-<div class="notice notice-error" role="note" style="margin-bottom:20px"><div><p><b>We left out your {{ c.name|lower }} clip.</b> {{ c.problems|join(" ") }} This report uses your other clips.</p></div></div>
+<div class="notice notice-error" role="note" style="margin-bottom:20px"><div><p><b>We left out your {{ c.name }} clip.</b> {{ c.problems|join(" ") }} This report uses your other clips.</p></div></div>
 {% endfor %}
 <section class="card" data-report-id="{{ r.id }}" aria-label="Summary">
   {% if r.synthetic %}
@@ -52,9 +52,18 @@
         <li><span class="dot dot-{{ key }}" aria-hidden="true"></span>{{ label }} <b>{{ n }}</b></li>
         {% endfor %}
       </ul>
-      <div class="strip" aria-hidden="true">{% for l in r.lanes %}<i class="seg seg-{{ l.status }}" title="{{ l.name }}: {{ l.label }}"></i>{% endfor %}</div>
+      <div class="strip" aria-hidden="true">{% for l in r.lanes %}<i class="seg seg-{{ l.status }}" title="{{ l.check }}: {{ l.label }}"></i>{% endfor %}</div>
     </div>
   </div>
+  {% if since %}
+  <p class="since"><b>Since your <a href="/analyses/{{ since.id }}">last report</a> (<time datetime="{{ since.iso }}" data-local="date">{{ since.date }}</time>):</b>
+    {% if not since.fixed and not since.new and not since.still %}nothing was flagged then or now.
+    {% else %}
+    {% if since.fixed %}<span class="since-fixed">Fixed: {{ since.fixed|join(", ") }}.</span>{% endif %}
+    {% if since.still %}{{ since.still }} still to work on.{% endif %}
+    {% if since.new %}New this time: {{ since.new|join(", ") }}.{% endif %}
+    {% endif %}</p>
+  {% endif %}
 </section>
 
 {% if r.priorities %}
@@ -68,6 +77,8 @@
         <h3>{{ p.name }}</h3>
         {% if p.estimated %}<span class="pill pill-estimated">Estimated from what the cameras could see</span>
         {% else %}<span class="pill pill-flagged">Needs work</span>{% endif %}
+        {% if p.since == "repeat" %}<span class="pill pill-unchecked">Also in your last report</span>
+        {% elif p.since == "new" %}<span class="pill pill-unchecked">New since your last report</span>{% endif %}
       </div>
     </div>
     <div class="finding-body{% if not p.snapshot %} no-snap{% endif %}">
@@ -92,11 +103,11 @@
         <div>
           <h4>{{ heading }}</h4>
           {% if note %}<p class="fix-note">{{ note }}</p>{% endif %}
-          {% macro drill_list(ds) %}
+          {% macro drill_list(ds, open_first=false) %}
           <ul class="drills">
             {% for d in ds %}
             <li>
-              <details class="drill">
+              <details class="drill"{% if open_first and loop.first %} open{% endif %}>
                 <summary><span class="drill-name">{{ d.name }}</span>{% if d.equipment %}<span class="kit">{{ d.equipment }}</span>{% endif %}</summary>
                 {% if d.description %}<p>{{ d.description }}{% if d.difficulty and d.difficulty != "easy" %} <span class="level">{{ d.difficulty|capitalize }}.</span>{% endif %}</p>{% endif %}
               </details>
@@ -104,7 +115,7 @@
             {% endfor %}
           </ul>
           {% endmacro %}
-          {{ drill_list(items[:3]) }}
+          {{ drill_list(items[:3], heading == "In the pool") }}
           {% if items|length > 3 %}
           <details class="more-drills">
             <summary>{{ items|length - 3 }} more</summary>
@@ -160,7 +171,7 @@
         {% for l in group %}
         <li class="lane lane-{{ l.status }}">
           <span>
-            <span class="lane-name">{{ l.name }}</span>
+            <span class="lane-name">{{ l.name if l.status in ["flagged", "estimated"] else l.check }}</span>
             {% if l.status == "unchecked" and advice.get(l.name) %}<span class="muted small" style="display:block">{{ advice[l.name] }}</span>{% endif %}
           </span>
           {% if l.status == "clear_est" %}<span class="lane-note">estimated</span>{% endif %}
@@ -219,8 +230,11 @@
 </section>
 {% endif %}
 
+{% if not admin_view and (r.priorities or r.also) %}
+<p class="next-step"><b>What now?</b> Pick the first one or two findings and work their drills into your swims for two to three weeks. Then film again: your next report shows what changed.</p>
+{% endif %}
 <div class="page-actions">
-  <a class="btn btn-primary" href="/analyses/new">Analyse another pair of clips</a>
+  <a class="btn btn-primary" href="/analyses/new">Analyse new clips</a>
   <a class="btn btn-secondary" href="/">All reports</a>
 </div>
 {% endblock %}

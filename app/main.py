@@ -57,6 +57,7 @@ def summarise(record):
     """The small summary the reports list shows, from a finished analysis."""
     view = presenter.build(record, rules())
     return {"lanes": ",".join(l["status"] for l in view["lanes"]), "flagged": view["counts"]["flagged"],
+            "headline": view["headline"][:300],
             "estimated": view["counts"]["estimated"], "unchecked": view["counts"]["unchecked"]}
 
 
@@ -344,7 +345,7 @@ def home(request: Request):
               "iso": (a.created if a.created.tzinfo else a.created.replace(tzinfo=db.now().tzinfo)).isoformat(),
               "lanes": a.lanes.split(",") if a.lanes else [],
               "flagged": a.flagged, "estimated": a.estimated, "unchecked": a.unchecked,
-              "status": a.status} for a in rows]
+              "headline": a.headline, "status": a.status} for a in rows]
     return page(request, "reports.html", {"items": items})
 
 
@@ -427,7 +428,12 @@ def render_analysis(request, row, admin_view=None):
     record = pipeline.load(aid)
     if record is None:
         return page(request, "missing.html", {}, 404)
-    return page(request, "report.html", {"r": presenter.build(record, rules()), "coach_note": row.coach_note,
+    view = presenter.build(record, rules())
+    since = None
+    previous = auth.previous_report(row)
+    if previous is not None and (old := pipeline.load(previous.id)) is not None:
+        since = presenter.since_last(view, presenter.build(old, rules()))
+    return page(request, "report.html", {"r": view, "coach_note": row.coach_note, "since": since,
                                          "feedback": feedback.for_analysis(aid), "admin_view": admin_view,
                                          "saved": request.query_params.get("saved")})
 

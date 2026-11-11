@@ -662,15 +662,14 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0
 }
 
 /* ---------- upload: two clips per view; footage notes on the report ---------- */
-.zones { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+.zones { display: grid; gap: 12px; }
 .zone { display: grid; gap: 8px; min-width: 0; }
-.zone-label { font-weight: 650; font-size: 0.92rem; }
-.zone-label span { display: block; font-weight: 400; color: var(--ink-3); font-size: 0.82rem; }
-.zone .drop { padding: 18px 10px; }
-.zone .drop-title { font-size: 0.92rem; text-align: center; }
-.zone .drop-hint { text-align: center; }
 .zone .warn { margin: 0; font-size: 0.88rem; }
-@media (max-width: 420px) { .zones { grid-template-columns: 1fr; } }
+.extra-clip > summary { cursor: pointer; color: var(--aqua); font-weight: 600; font-size: 0.93rem; padding: 4px 0; }
+.extra-clip > summary .optional { color: var(--ink-3); font-weight: 400; }
+.extra-clip[open] > summary { margin-bottom: 6px; }
+.extra-note { color: var(--ink-2); font-size: 0.88rem; margin-bottom: 8px; }
+.extra-clip .drop { padding: 16px 10px; }
 
 
 /* ---------- first-upload training ---------- */
@@ -695,3 +694,11 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0
 .more-drills > summary { cursor: pointer; color: var(--aqua); font-weight: 600; font-size: 0.9rem; padding: 6px 0; }
 .more-drills[open] > summary { margin-bottom: 4px; }
 @media print { .more-drills > summary { display: none; } }
+
+/* ---------- progress between reports, next step ---------- */
+.since { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--ink-2); }
+.since b { color: var(--ink); }
+.since-fixed { color: #17714F; font-weight: 600; }
+.next-step { margin-top: 24px; color: var(--ink-2); max-width: 720px; }
+.next-step b { color: var(--ink); }
+@media print { .next-step { display: none; } }

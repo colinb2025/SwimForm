@@ -2,7 +2,7 @@
 {% from "_macros.html" import band, mini_diagram, upload_icon %}
 {% block title %}New analysis · SwimForm{% endblock %}
 {% block band %}
-{% call band("New analysis", "At least two clips of steady freestyle: one from the side and one head-on. Add underwater clips if you have them and we'll measure more. Every clip is checked before it's used, so a wrong angle gets caught, not graded.") %}
+{% call band("New analysis", "Two clips of your freestyle: one from the side, one head-on. We check each clip before using it, so a bad angle gets caught, not graded.") %}
   <a class="btn btn-on-band" href="/guide">Filming guide</a>
 {% endcall %}
 {% endblock %}
@@ -23,22 +23,37 @@
 <form action="/analyses" method="post" enctype="multipart/form-data" id="upload-form">
   <h2 class="visually-hidden">Where to put the two cameras</h2>
   <div class="upload-grid">
+    {% macro zone(name, label) %}
+    <div class="zone">
+      <div class="notice warn" role="status" hidden></div>
+      <label class="drop">
+        <input type="file" name="{{ name }}" accept="video/*" aria-label="{{ label }}">
+        <span class="drop-body">
+          {{ upload_icon() }}
+          <span class="drop-title">Drop your clip here, or <u>browse</u></span>
+          <span class="drop-hint">MP4 or MOV, straight from your phone</span>
+        </span>
+        <span class="chosen-view">
+          <canvas aria-hidden="true"></canvas>
+          <span class="chosen-meta"><b class="chosen-name"></b><span class="chosen-side"><span class="chosen-info"></span><span class="change">Change</span></span></span>
+        </span>
+      </label>
+    </div>
+    {% endmacro %}
     {% for slot, title, where, tips in [
-        ("side", "Side view", "From beside the lane",
-          ["Film a 50, down the pool and back, so we see both arms.",
-           "Point straight across the lane and walk alongside, same side both ways.",
-           "An underwater clip lets us measure the catch and pull directly."]),
-        ("head_on", "Head-on view", "From the end wall",
-          ["Centred on the lane, swimmer coming toward you.",
-           "Above water: hold the phone high and look down the lane, it sees through the surface better.",
-           "Keep the camera still, and stop before they reach the wall to turn."])] %}
+        ("side", "Side view", "Filmed from the deck, beside your lane",
+          ["A 50, down the pool and back, so we see both arms.",
+           "Camera pointing straight across the lane, walking alongside you."]),
+        ("head_on", "Head-on view", "Filmed from the end wall",
+          ["One length, swimming toward the camera.",
+           "Phone held high, looking down the lane, and kept still."])] %}
     {% set card_problems = problems.get(slot, []) + problems.get(slot ~ "_uw", []) %}
     <fieldset class="slot{% if card_problems %} has-problem{% endif %}" data-view="{{ title|lower }}">
       <legend class="visually-hidden">{{ title }}</legend>
       <div class="slot-card">
         <div class="slot-head">
           {{ mini_diagram(slot) }}
-          <div><h2>{{ title }}</h2><p>{{ where }}. Add one clip or both.</p></div>
+          <div><h2>{{ title }}</h2><p>{{ where }}</p></div>
         </div>
         <ul class="tips">{% for t in tips %}<li>{{ t }}</li>{% endfor %}</ul>
         {% if card_problems %}
@@ -47,24 +62,12 @@
         </div>
         {% endif %}
         <div class="zones">
-          {% for name, water, hint in [(slot, "Above water", "Filmed from the deck or wall"), (slot ~ "_uw", "Underwater", "Optional, and the most accurate")] %}
-          <div class="zone">
-            <p class="zone-label">{{ water }} <span>{{ hint }}</span></p>
-            <div class="notice warn" role="status" hidden></div>
-            <label class="drop">
-              <input type="file" name="{{ name }}" accept="video/*" aria-label="{{ title }} clip, {{ water|lower }}">
-              <span class="drop-body">
-                {{ upload_icon() }}
-                <span class="drop-title">Drop a clip here, or <u>browse</u></span>
-                <span class="drop-hint">MP4 or MOV, straight from your phone</span>
-              </span>
-              <span class="chosen-view">
-                <canvas aria-hidden="true"></canvas>
-                <span class="chosen-meta"><b class="chosen-name"></b><span class="chosen-side"><span class="chosen-info"></span><span class="change">Change</span></span></span>
-              </span>
-            </label>
-          </div>
-          {% endfor %}
+          {{ zone(slot, title ~ " clip") }}
+          <details class="extra-clip"{% if problems.get(slot ~ "_uw") %} open{% endif %}>
+            <summary>Have an underwater {{ title|lower|replace(" view", "") }} clip too? Add it <span class="optional">(optional)</span></summary>
+            <p class="extra-note">We'll use both, and measure the pull directly from the underwater one.</p>
+            {{ zone(slot ~ "_uw", title ~ " clip, underwater") }}
+          </details>
         </div>
       </div>
     </fieldset>

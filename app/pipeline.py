@@ -131,7 +131,7 @@ def save_uploads(files):
             problems[slot] = ["This doesn't look like a video. Use an .mp4 or .mov file straight from your phone."]
     for view in SLOTS:   # one clip of each view is the minimum; above water or under it
         if not any(slot in files for slot in slots_for(view)):
-            problems.setdefault(view, []).append(f"Add a {VIEW_WORDS[view]} clip: above water, underwater, or both.")
+            problems.setdefault(view, []).append(f"Add your {VIEW_WORDS[view]} clip.")
     if problems:
         raise UploadProblem(problems)
     aid = uuid.uuid4().hex[:12]
@@ -188,10 +188,34 @@ def process(aid, rules_path=DEFAULT_RULES):
         if storage.fetch(folder(aid), aid, path.name) is None:
             raise RuntimeError(f"the {slot} clip is no longer stored")
     tracks = PROVIDERS[provider](paths, names)
-    checks = {slot: check_clip(tracks[slot], CLIPS[slot][0]) for slot in tracks}
-    usable = {view: [slot for slot in slots_for(view) if slot in checks and checks[slot]["ok"]] for view in SLOTS}
+    # Each clip goes to the view it actually shows. A clip dropped in the wrong box (the
+    # two swapped, say) is simply used where it belongs; nobody is sent back to re-upload.
+    checks, shows = {}, {}
+    for slot, tr in tracks.items():
+        boxed = CLIPS[slot][0]
+        c = check_clip(tr, boxed)
+        other = HEAD_ON if boxed == SIDE else SIDE
+        if not c["ok"] and c.get("view_guess") == other:
+            tr.view = other
+            moved = check_clip(tr, other)
+            if moved["ok"]:
+                c, boxed = moved, other
+            else:
+                tr.view = CLIPS[slot][0]
+        checks[slot], shows[slot] = c, boxed
+    usable = {view: [slot for slot in tracks if shows[slot] == view and checks[slot]["ok"]] for view in SLOTS}
     if not all(usable.values()):   # a view with no usable clip: nothing honest to report
-        raise UploadProblem({slot: c["problems"] for slot, c in checks.items() if not c["ok"]})
+        problems = {slot: c["problems"] for slot, c in checks.items() if not c["ok"]}
+        for view in SLOTS:
+            if usable[view]:
+                continue
+            for slot in slots_for(view):   # a good clip, but of the other angle
+                if slot in tracks and checks[slot]["ok"]:
+                    have, need = ("side", "head-on") if view == HEAD_ON else ("head-on", "side")
+                    where = "from the end wall, with you swimming toward the camera" if view == HEAD_ON \
+                        else "from the deck beside your lane"
+                    problems[slot] = [f"Both of your clips are {have} views. We also need a {need} clip, filmed {where}."]
+        raise UploadProblem(problems)
     rules, errors = R.load(rules_path)
     if errors:
         raise RuntimeError("rules workbook invalid: " + "; ".join(errors))
@@ -199,8 +223,8 @@ def process(aid, rules_path=DEFAULT_RULES):
     # What each uploaded clip gave us, for the report's footage notes. An extra clip that
     # failed its check is left out of the analysis and listed here with the reason.
     clips = []
-    for slot in [sl for view in SLOTS for sl in slots_for(view) if sl in tracks]:   # grouped by view
-        view, water = CLIPS[slot]
+    for slot in [sl for sl in CLIPS if sl in tracks]:
+        view, water = shows[slot], CLIPS[slot][1]
         tr, c = tracks[slot], checks[slot]
         used = slot in usable[view]
         info = report["clips"][view][usable[view].index(slot)] if used else {}

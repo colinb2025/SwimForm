@@ -275,7 +275,7 @@ def test_fast_reports_do_not_email_but_slow_ones_do(app_, monkeypatch):
     monkeypatch.setattr(jobs, "NOTIFY_AFTER_S", -1)       # every job now counts as slow
     aid = aid_of(upload(c))
     assert "report is ready" in outbox()[-1]["subject"] and aid in outbox()[-1]["text"]
-    bad = aid_of(upload(c, side="head_front.mp4", head="side_view.mov"))     # swapped clips
+    bad = aid_of(upload(c, side="lap.mp4", head="side_view.mov"))            # two side views, no head-on
     assert status_of(bad) == "rejected" and "couldn't use" in outbox()[-1]["subject"]
 
 
@@ -322,7 +322,7 @@ def test_free_limit_counts_only_analyses_that_ran(app_, monkeypatch):
     monkeypatch.setenv("SWIMFORM_FREE_ANALYSES", "2")
     c = browser(app_)
     assert "2 of 2 free analyses left this month" in text(c.get("/analyses/new").text)
-    upload(c, side="head_front.mp4", head="side_view.mov")          # rejected: doesn't count
+    upload(c, side="lap.mp4", head="side_view.mov")                 # rejected: doesn't count
     assert upload(c).status_code == 303 and upload(c).status_code == 303
     r = upload(c)
     assert r.status_code == 402 and "used this month's 2 free analyses" in text(r.text)
