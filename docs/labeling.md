@@ -126,3 +126,21 @@ Every number is per keypoint, with visible and occluded points split. The table 
 frames to look at first, and `--draw` saves them with your label in green and the model's
 in red. Pass two sets of weights to see whether a round actually improved things.
 The bar lives in `scorecard.BAR` and is a draft.
+
+## A base set without labeling: SwimXYZ
+
+SwimXYZ is a synthetic swimming dataset (rendered swimmers, exact joint positions on every
+frame, CC BY 4.0). A subset of its freestyle clips is the base the model is trained on
+before any real footage; real clips from teammates then fine-tune it.
+
+    python -m swimform.swimxyz fetch labels                          # 1.7 GB
+    python -m swimform.swimxyz inspect swimxyz/Freestyle_labels.zip  # writes swimxyz_sample.zip
+    python -m swimform.swimxyz fetch side front                      # 36 GB + 40 GB, resumable
+
+Views used: front (our head-on) and the three side views (above water, water level,
+underwater). The aerial view is not one of ours and is skipped. The converter to the 15
+keypoints is written from `swimxyz_sample.zip`, so run `inspect` and send that file first.
+
+Credit, wherever the model or its training data is described: Fiche, Sevestre,
+Gonzalez-Barral, Leglaive, Séguier, "SwimXYZ: A large-scale dataset of synthetic swimming
+motions and videos", ACM MIG 2023, CC BY 4.0.
