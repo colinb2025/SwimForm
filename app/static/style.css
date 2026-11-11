@@ -688,3 +688,10 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0
   .step-num { grid-row: auto; }
   .steps ul { grid-column: 1; }
 }
+
+/* ---------- longer drill lists: first three shown, the rest one tap away ---------- */
+.fix-note { color: var(--ink-3); font-size: 0.85rem; margin: -2px 0 8px; }
+.more-drills { margin-top: 6px; }
+.more-drills > summary { cursor: pointer; color: var(--aqua); font-weight: 600; font-size: 0.9rem; padding: 6px 0; }
+.more-drills[open] > summary { margin-bottom: 4px; }
+@media print { .more-drills > summary { display: none; } }

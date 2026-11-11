@@ -370,3 +370,26 @@ def test_proxy_rule_without_hedged_wording_fails_validation(rules):
     bad = {**rules, "issues": [dict(i, proxy_observed=None) if i["issue_id"] == "dropped_elbow" else i
                               for i in rules["issues"]]}
     assert any("proxy_observed" in e for e in R.validate(bad))
+
+
+# ------------------------------------------------------------------ the drill library
+def test_every_finding_has_pool_drills_and_the_library_is_wired_up(rules):
+    by_issue = {}
+    kinds = {v["intervention_id"]: v for v in rules["interventions"]}
+    for r in rules["issue_interventions"]:
+        by_issue.setdefault(r["issue_id"], []).append(kinds[r["intervention_id"]])
+    assert set(by_issue) == {i["issue_id"] for i in rules["issues"]}
+    for iid, items in by_issue.items():
+        assert sum(v["type"] == "drill" for v in items) >= 3, iid
+    # over-gliding is timing, not mobility: it is the one finding with no land work
+    assert {i for i, items in by_issue.items() if not any(v["type"] == "exercise" for v in items)} == {"over_gliding"}
+    used = {r["intervention_id"] for r in rules["issue_interventions"]}
+    assert used == set(kinds)                                        # nothing in the library is orphaned
+    assert sum(v["type"] == "drill" for v in kinds.values()) == 30
+    for v in kinds.values():
+        if v["type"] == "exercise":                                  # every exercise says how much to do
+            assert any(ch.isdigit() for ch in v["description"]), v["intervention_id"]
+    ranks = {}
+    for r in rules["issue_interventions"]:
+        ranks.setdefault(r["issue_id"], []).append(r["rank"])
+    assert all(sorted(v) == list(range(1, len(v) + 1)) for v in ranks.values())

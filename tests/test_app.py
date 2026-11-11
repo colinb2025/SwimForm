@@ -242,3 +242,15 @@ def test_arm_notes():
 def test_guide_asks_for_a_50_from_the_side(client):
     page = text(client.get("/guide").text)
     assert "Film a 50" in page and "same side of the pool" in page
+
+
+def test_report_groups_fixes_as_pool_and_mobility_and_strength(client, monkeypatch):
+    from app import pipeline
+    monkeypatch.setattr(pipeline, "_synthetic_swimmer", lambda seed: Swimmer({"dropped_elbow": 1.0}, cycle_s=1.6))
+    r = upload(client, side=("side.mp4", b"me"), head_on=("head.mov", b"ms"))
+    html = client.get(r.headers["location"]).text
+    page = text(html)
+    assert "Mobility and strength" in page and "On land" not in page
+    assert "External rotation at 90°" in page and "Overhead kettlebell carry" in page and "Long dog" in page
+    assert "This is training, not treatment" in page
+    assert 'class="more-drills"' in html                             # past the first three, tucked away

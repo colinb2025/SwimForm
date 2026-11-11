@@ -87,11 +87,14 @@
     {% if p.drills or p.cues or p.exercises %}
     <div class="fix">
       <div class="fix-groups">
-        {% for heading, items in [("In the pool", p.drills), ("Think about", p.cues), ("On land", p.exercises)] if items %}
+        {% for heading, items, note in [("In the pool", p.drills, ""), ("Think about", p.cues, ""),
+             ("Mobility and strength", p.exercises, "Two or three times a week. This is training, not treatment: stop anything that hurts.")] if items %}
         <div>
           <h4>{{ heading }}</h4>
+          {% if note %}<p class="fix-note">{{ note }}</p>{% endif %}
+          {% macro drill_list(ds) %}
           <ul class="drills">
-            {% for d in items %}
+            {% for d in ds %}
             <li>
               <details class="drill">
                 <summary><span class="drill-name">{{ d.name }}</span>{% if d.equipment %}<span class="kit">{{ d.equipment }}</span>{% endif %}</summary>
@@ -100,6 +103,14 @@
             </li>
             {% endfor %}
           </ul>
+          {% endmacro %}
+          {{ drill_list(items[:3]) }}
+          {% if items|length > 3 %}
+          <details class="more-drills">
+            <summary>{{ items|length - 3 }} more</summary>
+            {{ drill_list(items[3:]) }}
+          </details>
+          {% endif %}
         </div>
         {% endfor %}
       </div>
