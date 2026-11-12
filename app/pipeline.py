@@ -168,6 +168,27 @@ def folder(aid):
     return DATA / "analyses" / aid
 
 
+def replace_clips(aid, files):
+    """Swap new clips into an upload that was turned back, keeping the clips that were
+    fine. files: {slot: (filename, fileobj)}. Raises UploadProblem like a first upload."""
+    files = {slot: f for slot, f in files.items() if slot in CLIPS and f[0]}
+    problems = {slot: ["This doesn't look like a video. Use an .mp4 or .mov file straight from your phone."]
+                for slot, (name, _) in files.items() if Path(name).suffix.lower() not in VIDEO_EXT}
+    if problems:
+        raise UploadProblem(problems)
+    up = upload_info(aid)
+    for slot in files:   # a replacement may have a different extension: drop the old file first
+        old = up["paths"].get(slot)
+        if old:
+            (folder(aid) / old).unlink(missing_ok=True)
+    paths, names = _write(folder(aid), files)
+    up["paths"].update({k: v.name for k, v in paths.items()})
+    up["files"].update(names)
+    up["provider"] = os.environ.get("SWIMFORM_POSE", "synthetic")
+    with open(folder(aid) / "upload.json", "w") as f:
+        json.dump(up, f)
+
+
 def queue(files, provider=None):
     """Save the uploads and note how to process them. Fast: runs inside the request.
     Raises UploadProblem for problems visible without looking at the video."""

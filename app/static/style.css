@@ -504,6 +504,7 @@ td:nth-child(2), td:nth-child(3), td:nth-child(5) { white-space: nowrap; }
   .band { background: #fff; color: var(--ink); }
   .band h1 { color: var(--ink); }
   .band .sub { color: var(--ink-2); }
+  .band .sub b { color: var(--ink); }
   .band-inner { padding: 0 0 12px; }
   .page { margin: 0; padding: 0; max-width: none; }
   .card { box-shadow: none; break-inside: avoid; }

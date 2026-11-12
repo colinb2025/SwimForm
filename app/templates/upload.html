@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import band, mini_diagram, upload_icon %}
+{% from "_macros.html" import band, mini_diagram, upload_icon, zone %}
 {% block title %}New analysis · SwimForm{% endblock %}
 {% block band %}
 {% call band("New analysis", "Two clips of your freestyle: one from the side, one head-on. We check each clip before using it, so a bad angle gets caught, not graded.") %}
@@ -23,23 +23,6 @@
 <form action="/analyses" method="post" enctype="multipart/form-data" id="upload-form">
   <h2 class="visually-hidden">Where to put the two cameras</h2>
   <div class="upload-grid">
-    {% macro zone(name, label) %}
-    <div class="zone">
-      <div class="notice warn" role="status" hidden></div>
-      <label class="drop">
-        <input type="file" name="{{ name }}" accept="video/*" aria-label="{{ label }}">
-        <span class="drop-body">
-          {{ upload_icon() }}
-          <span class="drop-title">Drop your clip here, or <u>browse</u></span>
-          <span class="drop-hint">MP4 or MOV, straight from your phone</span>
-        </span>
-        <span class="chosen-view">
-          <canvas aria-hidden="true"></canvas>
-          <span class="chosen-meta"><b class="chosen-name"></b><span class="chosen-side"><span class="chosen-info"></span><span class="change">Change</span></span></span>
-        </span>
-      </label>
-    </div>
-    {% endmacro %}
     {% for slot, title, where, tips in [
         ("side", "Side view", "Filmed from the deck, beside your lane",
           ["A 50, down the pool and back, so we see both arms.",

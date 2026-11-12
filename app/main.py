@@ -420,7 +420,8 @@ def render_analysis(request, row, admin_view=None):
     if row.status in ("queued", "running"):
         return page(request, "processing.html", {"aid": aid, "status": row.status, "admin_view": admin_view})
     if row.status == "rejected":
-        return page(request, "rejected.html", {"problems": json.loads(row.problems or "{}"), "admin_view": admin_view})
+        return page(request, "rejected.html", {"aid": aid, "problems": json.loads(row.problems or "{}"),
+                                               "admin_view": admin_view})
     if row.status == "failed":
         return page(request, "failed.html", {"admin_view": admin_view}, 200 if admin_view else 500)
     if row.status == "waiting" or (row.status == "review" and not admin_view):
@@ -458,6 +459,31 @@ def report_status(request: Request, aid: str):
     if row is None:
         return JSONResponse({"error": "not found"}, status_code=404)
     return {"status": row.status}
+
+
+@app.post("/analyses/{aid}/clips")
+async def replace_clips(request: Request, aid: str, side: UploadFile | None = None, head_on: UploadFile | None = None,
+                        side_uw: UploadFile | None = None, head_on_uw: UploadFile | None = None):
+    """Fix an upload that was turned back: send only the clips that need replacing."""
+    user = request.state.user
+    row = auth.owned_analysis(user, aid)
+    if row is None or row.status != "rejected":
+        return page(request, "missing.html", {}, 404)
+    files = {slot: (up.filename, up.file) for slot, up in
+             (("side", side), ("head_on", head_on), ("side_uw", side_uw), ("head_on_uw", head_on_uw))
+             if up is not None and up.filename}
+    was = json.loads(row.problems or "{}")
+    if not files:
+        return page(request, "rejected.html", {"aid": aid, "problems": was, "nothing_added": True}, 422)
+    try:
+        pipeline.replace_clips(aid, files)
+    except pipeline.UploadProblem as e:
+        return page(request, "rejected.html", {"aid": aid, "problems": dict(was, **e.problems)}, 422)
+    with db.session() as s:
+        s.get(db.Analysis, aid).status = "queued"
+        s.commit()
+    jobs.submit(aid)
+    return RedirectResponse(f"/analyses/{aid}", status_code=303)
 
 
 @app.post("/analyses/{aid}/feedback")

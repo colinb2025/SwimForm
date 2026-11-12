@@ -111,8 +111,39 @@ def test_two_clips_of_the_same_angle_are_explained(client):
     page = text(client.get(r.headers["location"]).text)
     assert "We couldn't use these clips" in page
     assert "Both of your clips are side views. We also need a head-on clip" in page
-    assert "This clip was fine" in page           # the side clip itself needs no change
+    assert "We've kept this clip" in page         # the side clip itself needs no change
     assert "Clips need re-filming" in text(client.get("/").text)
+
+
+def test_a_turned_back_upload_is_fixed_by_adding_only_the_missing_clip(client):
+    import io
+    r = upload(client, side=("lap.mp4", b"a"), head_on=("side_again.mov", b"b"))
+    where = r.headers["location"]
+    html = client.get(where).text
+    assert 'name="head_on"' in html and 'name="side"' not in html      # only the missing angle is asked for
+
+    assert client.post(f"{where}/clips", files={}).status_code == 422                    # nothing added
+    bad = client.post(f"{where}/clips", files={"head_on": ("notes.txt", io.BytesIO(b"x"), "text/plain")})
+    assert bad.status_code == 422 and "look like a video" in text(bad.text)
+
+    fixed = client.post(f"{where}/clips", files={"head_on": ("wall.mp4", io.BytesIO(b"c"), "video/mp4")},
+                        follow_redirects=False)
+    assert fixed.status_code == 303 and fixed.headers["location"] == where               # same analysis, now a report
+    assert "Your stroke report" in text(client.get(where).text)
+    from app import pipeline
+    record = pipeline.load(where.split("/")[-1])
+    assert record["files"] == {"side": "lap.mp4", "head_on": "wall.mp4"}                 # the good clip was kept
+    assert client.post(f"{where}/clips", files={"head_on": ("x.mp4", io.BytesIO(b"d"), "video/mp4")}).status_code == 404
+
+
+def test_only_the_owner_can_fix_an_upload(client):
+    import io
+    from fastapi.testclient import TestClient
+    r = upload(client, side=("lap.mp4", b"a"), head_on=("side_again.mov", b"b"))
+    other = TestClient(client.app)
+    other.post("/signup", data={"email": "other@example.com", "password": "correct horse 1"})
+    resp = other.post(f"{r.headers['location']}/clips", files={"head_on": ("wall.mp4", io.BytesIO(b"c"), "video/mp4")})
+    assert resp.status_code == 404
 
 
 def test_missing_and_non_video_files_are_rejected(client):

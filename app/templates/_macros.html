@@ -50,3 +50,21 @@
   <path d="M14.5 22v-8M11 17l3.5-3.5L18 17"/>
 </svg>
 {%- endmacro %}
+
+{% macro zone(name, label) %}
+<div class="zone">
+  <div class="notice warn" role="status" hidden></div>
+  <label class="drop">
+    <input type="file" name="{{ name }}" accept="video/*" aria-label="{{ label }}">
+    <span class="drop-body">
+      {{ upload_icon() }}
+      <span class="drop-title">Drop your clip here, or <u>browse</u></span>
+      <span class="drop-hint">MP4 or MOV, straight from your phone</span>
+    </span>
+    <span class="chosen-view">
+      <canvas aria-hidden="true"></canvas>
+      <span class="chosen-meta"><b class="chosen-name"></b><span class="chosen-side"><span class="chosen-info"></span><span class="change">Change</span></span></span>
+    </span>
+  </label>
+</div>
+{% endmacro %}

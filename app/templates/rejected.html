@@ -1,26 +1,53 @@
 {% extends "base.html" %}
-{% from "_macros.html" import band %}
+{% from "_macros.html" import band, zone %}
 {% block title %}We couldn't use these clips · SwimForm{% endblock %}
 {% block band %}
-{{ band("We couldn't use these clips", "We check every clip before measuring anything, so a clip we can't read never turns into a wrong report. Here's what to change.") }}
+{{ band("One more clip and you're there" if problems|length == 1 else "We couldn't use these clips", "We check every clip before measuring anything, so a clip we can't read never turns into a wrong report. Replace what's marked below; we keep the rest.") }}
 {% endblock %}
 {% block content %}
 {% include "_admin_bar.html" %}
-<div class="upload-grid">
-  {% for slot, title in [("side", "Side view"), ("head_on", "Head-on view")] %}
-  <section class="card">
-    <h2 style="margin-bottom:12px">{{ title }}</h2>
-    {% set found = [] %}
-    {% for key, label in [(slot, ""), (slot ~ "_uw", "Underwater clip: ")] if problems.get(key) %}
-    {% set _ = found.append(1) %}
-    <div class="notice notice-error" role="alert" style="margin-top:10px"><div>{% for p in problems[key] %}<p>{% if label %}<b>{{ label }}</b>{% endif %}{{ p }}</p>{% endfor %}</div></div>
+<form action="/analyses/{{ aid }}/clips" method="post" enctype="multipart/form-data" id="upload-form">
+  {% if nothing_added %}<div class="notice notice-error" role="alert" style="margin-bottom:20px"><p>Add the new clip first.</p></div>{% endif %}
+  <div class="upload-grid">
+    {% for slot, title in [("side", "Side view"), ("head_on", "Head-on view")] %}
+    {% set bad = [slot, slot ~ "_uw"]|select("in", problems)|list %}
+    {% if bad %}
+    <fieldset class="slot has-problem" data-view="{{ title|lower }}">
+      <legend class="visually-hidden">{{ title }}</legend>
+      <div class="slot-card">
+        <h2 style="margin-bottom:12px">{{ title }}</h2>
+        {% for key in bad %}
+        <div class="notice notice-error problem" role="alert"><div>{% for p in problems[key] %}<p>{% if key.endswith("_uw") %}<b>Underwater clip: </b>{% endif %}{{ p }}</p>{% endfor %}</div></div>
+        {% endfor %}
+        <div class="zones">
+          {% for key in bad %}{{ zone(key, "New " ~ title|lower ~ " clip") }}{% endfor %}
+        </div>
+      </div>
+    </fieldset>
+    {% else %}
+    <section class="card kept-clip">
+      <h2 style="margin-bottom:12px">{{ title }}</h2>
+      <p><span class="pill pill-clear" style="margin-left:0">Good to use</span></p>
+      <p class="muted" style="margin-top:10px">We've kept this clip. No need to upload it again.</p>
+    </section>
+    {% endif %}
     {% endfor %}
-    {% if not found %}<p class="muted">This clip was fine. You can upload it again as it is.</p>{% endif %}
-  </section>
-  {% endfor %}
-</div>
+  </div>
+  {% if not admin_view %}
+  <div class="submit-bar">
+    <p class="hint">Need a reminder of the angles? <a href="/guide">Filming guide</a></p>
+    <button type="submit" class="btn btn-primary btn-lg">Analyse my stroke</button>
+    <div class="progress" role="status" aria-live="polite" hidden>
+      <div class="bar"><span></span></div>
+      <p class="progress-label"></p>
+    </div>
+  </div>
+  {% endif %}
+</form>
 <div class="page-actions">
-  <a class="btn btn-primary" href="/analyses/new">Upload new clips</a>
-  <a class="btn btn-secondary" href="/guide">Filming guide</a>
+  <a class="btn btn-secondary" href="/analyses/new">Start over with new clips</a>
 </div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/upload.js" defer></script>
 {% endblock %}
