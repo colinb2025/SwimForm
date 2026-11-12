@@ -11,6 +11,7 @@ import json
 import re
 import time
 
+import numpy as np
 import pytest
 
 pytest.importorskip("fastapi")
@@ -627,3 +628,137 @@ def test_only_consented_clips_are_exported_for_labeling(app_, tmp_path):
 
     yes.post("/account/delete", data={"confirm": "delete", "password": PW})
     assert export_clips.export(tmp_path / "later") == (0, 0)     # a deleted account's clips are never exported
+
+
+# ================================================================ ship polish
+def test_unknown_addresses_get_a_real_page(app_):
+    c = TestClient(app_)
+    r = c.get("/no-such-page", headers={"accept": "text/html"})
+    assert r.status_code == 404 and "We can't find that page" in text(r.text) and "SwimForm" in r.text
+    assert c.get("/no-such-page", headers={"accept": "application/json"}).json() == {"detail": "Not Found"}
+    r = c.get("/logout", headers={"accept": "text/html"})                 # a POST-only address, visited by hand
+    assert r.status_code == 405 and "That didn't work" in text(r.text)
+
+
+def test_a_crash_shows_an_apology_not_a_stack_trace(app_, monkeypatch):
+    from app import presenter
+    c = TestClient(app_, raise_server_exceptions=False)
+    signup(c)
+    aid = aid_of(upload(c))
+    monkeypatch.setattr(presenter, "build", lambda *a, **k: 1 / 0)
+    r = c.get(f"/analyses/{aid}")
+    assert r.status_code == 500 and "Something went wrong on our side" in r.text and "ZeroDivision" not in r.text
+
+
+def test_sample_report_is_public_and_asks_for_nothing(app_, monkeypatch):
+    monkeypatch.setenv("SWIMFORM_SIGNUP", "invite")
+    c = TestClient(app_)
+    r = c.get("/sample")
+    page = text(r.text)
+    assert r.status_code == 200 and "A sample stroke report" in page and "This is a sample report" in page
+    assert "Dropped elbow" in page and "Seen on your left arm only" in page
+    assert "/feedback" not in r.text and "Analyse new clips" not in page
+    assert "I have an invite" in page and "Join the waitlist" in page
+    assert 'href="/sample"' in c.get("/login").text and 'href="/sample"' in c.get("/waitlist").text
+
+
+def test_icons_share_card_and_robots(app_):
+    c = TestClient(app_)
+    assert c.get("/favicon.ico").headers["content-type"] == "image/png"
+    for path in ("/static/favicon.svg", "/static/apple-touch-icon.png", "/static/share.png"):
+        assert c.get(path).status_code == 200
+    head = c.get("/login").text
+    assert 'property="og:image"' in head and 'name="description"' in head
+    assert "Disallow: /" in c.get("/robots.txt").text
+
+
+def test_emails_go_out_as_branded_html_with_a_button(app_, monkeypatch):
+    from app import jobs, mailer
+    monkeypatch.setenv("SWIMFORM_BASE_URL", "https://swimform.test")
+    monkeypatch.setattr(jobs, "NOTIFY_AFTER_S", -1)
+    c = browser(app_, name="<b>Sam</b>")
+    aid = aid_of(upload(c))
+    html_ = outbox()[-1]["html"]
+    assert f'href="https://swimform.test/analyses/{aid}"' in html_ and "Open your report" in html_
+    assert "&lt;b&gt;Sam&lt;/b&gt;" in html_ and "<b>Sam</b>" not in html_     # names can't inject markup
+    assert "Create your account" in mailer.render_html("x", "Hi,\n\nhttps://swimform.test/signup?invite=ABC\n")
+
+
+def test_invite_error_still_offers_the_waitlist(app_, monkeypatch):
+    monkeypatch.setenv("SWIMFORM_SIGNUP", "invite")
+    r = signup(TestClient(app_))
+    assert r.status_code == 422 and 'href="/waitlist"' in r.text.split('id="invite-err"')[1][:400]
+
+
+# ------------------------------------------------------------------ tracked frames
+def _film(track, path, size=(480, 270)):
+    """A real video of a pose track: water-blue frames with the swimmer's points as dots."""
+    import cv2
+    w = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"mp4v"), track.fps, size)
+    sx, sy = size[0] / track.W, size[1] / track.H
+    for pts in track.data:
+        img = np.full((size[1], size[0], 3), (150, 110, 40), np.uint8)
+        for x, y, c in pts:
+            if c > 0.5:
+                cv2.circle(img, (int(x * sx), int(y * sy)), 3, (255, 255, 255), -1)
+        w.write(img)
+    w.release()
+
+
+def _camera_provider(monkeypatch):
+    """Stand in for the trained model: keypoints that really do belong to the uploaded video."""
+    from app import pipeline
+
+    def fake(paths, names):
+        tracks = pipeline.pose_synthetic(paths, names)
+        for slot, tr in tracks.items():
+            _film(tr, paths[slot])
+        return tracks
+    monkeypatch.setitem(pipeline.PROVIDERS, "yolo", fake)
+    monkeypatch.setenv("SWIMFORM_POSE", "yolo")
+    monkeypatch.setenv("SWIMFORM_WEIGHTS", __file__)   # only has to exist
+
+
+def test_report_shows_the_swimmers_own_frames_with_the_tracked_points(app_, monkeypatch):
+    import cv2
+    from app import tracked
+    client = browser(app_)
+    _camera_provider(monkeypatch)
+    aid = aid_of(upload(client))
+    page_ = client.get(f"/analyses/{aid}")
+    assert "What we tracked" in page_.text and f"/analyses/{aid}/tracked/side.jpg" in page_.text
+    for slot in ("side", "head_on"):
+        img = client.get(f"/analyses/{aid}/tracked/{slot}.jpg")
+        assert img.status_code == 200 and img.headers["content-type"] == "image/jpeg"
+        assert "private" in img.headers["cache-control"]
+        still = cv2.imdecode(np.frombuffer(img.content, np.uint8), cv2.IMREAD_COLOR)
+        assert still.shape[1] <= tracked.MAX_WIDTH
+        # the skeleton was drawn: the right side's coral is in the picture
+        b, g, rd = (still[..., i].astype(int) for i in range(3))
+        assert ((rd > 200) & (b < 130) & (g < 130)).sum() > 20
+    assert client.get(f"/analyses/{aid}/tracked/side_uw.jpg").status_code == 404     # no such clip
+    assert client.get(f"/analyses/{aid}/tracked/nonsense.jpg").status_code == 404
+
+
+def test_tracked_frames_are_private_and_absent_in_demo_mode(app_, monkeypatch):
+    client = browser(app_)
+    aid = aid_of(upload(client))                         # demo mode: simulated swimmer
+    assert "What we tracked" not in client.get(f"/analyses/{aid}").text
+    assert client.get(f"/analyses/{aid}/tracked/side.jpg").status_code == 404
+    _camera_provider(monkeypatch)
+    aid = aid_of(upload(client))
+    assert client.get(f"/analyses/{aid}/tracked/side.jpg").status_code == 200
+    client.post("/logout")
+    assert client.get(f"/analyses/{aid}/tracked/side.jpg").status_code == 404
+    assert browser(app_, "other@example.com").get(f"/analyses/{aid}/tracked/side.jpg").status_code == 404
+    assert browser(app_, ADMIN).get(f"/analyses/{aid}/tracked/side.jpg").status_code == 200   # coach review
+
+
+def test_tracked_frame_gives_up_quietly(tmp_path):
+    from app import tracked
+    from swimform.schema import SIDE
+    from swimform.synthetic import Swimmer, generate
+    tr = generate(SIDE, Swimmer(), quality="typical")
+    assert tracked.render(tmp_path / "not-a-video.mp4", tr, tmp_path / "out.jpg") is False
+    tr.data[:, :, 2] = 0.1                                # nothing seen anywhere
+    assert tracked.pick_frame(tr) is None

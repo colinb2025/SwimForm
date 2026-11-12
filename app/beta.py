@@ -51,7 +51,7 @@ def gate(email, code):
         return "SwimForm isn't taking new accounts right now. Join the waitlist and we'll email you."
     code = normalise(code)
     if not code:
-        return "SwimForm is invite-only during the beta. Enter your invite code, or join the waitlist."
+        return "SwimForm is invite-only during the beta. Enter your invite code to create an account."
     with db.session() as s:
         inv = s.get(db.Invite, code)
     if inv is None:

@@ -57,6 +57,28 @@ before the next `fit`: the privacy page promises this.
 | rejected | Clips need re-filming | what to change, per clip |
 | failed | Didn't finish | apology; the reason is on the admin row |
 
+## What's there to show people
+
+- **`/sample`**: a full sample report anyone can open without an account (simulated swimmer,
+  labelled as such). Linked from the login, waitlist and "being checked" pages. Send this
+  link to a coach or a tester who wants to see what they'd get.
+- **What we tracked**: once reports come from the real model (`SWIMFORM_POSE=yolo`), each
+  report shows a frame from every clip with the tracked body points drawn on it, cropped to
+  the swimmer. It's private to the swimmer and admins. Not shown in demo or collect mode.
+- **Emails** go out as branded HTML with a plain-text copy.
+- **Error pages**: wrong links and crashes get a normal page with a way back, not raw text.
+- **Sharing**: the site has an icon and a preview card for when a link is pasted into a chat.
+- **Accessibility**: every page passes an automated WCAG 2.1 AA check (axe-core) at desktop
+  and phone widths. That's the automated part only; nobody has tried it with a screen reader.
+
+## Checked before beta
+
+- Full test suite on SQLite and on Postgres 16.
+- Whole flow walked in a real browser, desktop and phone, with real video files (previews,
+  too-short and vertical warnings).
+- **Not checked:** the Docker image build (the build machine couldn't reach Docker Hub).
+  Run `docker compose up --build` once before deploying.
+
 ## Not built yet
 
 - A real pose model. Until `fit` passes, use `collect`. `synthetic` shows simulated reports

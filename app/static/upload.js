@@ -90,6 +90,7 @@
   });
 
   var form = document.getElementById("upload-form");
+  if (!form) return;   // e.g. the monthly limit was reached: there is no form on the page
   form.addEventListener("submit", function (e) {
     // One clip of each view is the minimum; say so here instead of after a long upload.
     var missing = null;

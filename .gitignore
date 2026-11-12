@@ -49,3 +49,6 @@ Thumbs.db
 
 # swimform.train working folder
 training/
+
+# app icons and the share card are part of the site
+!app/static/*.png

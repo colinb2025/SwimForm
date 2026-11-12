@@ -30,7 +30,7 @@ from swimform.posedata import PoseTrack
 from swimform.schema import HEAD_ON, KEYPOINTS, SIDE
 from swimform.viewcheck import check_clip
 
-from . import storage
+from . import storage, tracked
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = Path(os.environ.get("SWIMFORM_DATA", ROOT / "data"))
@@ -254,12 +254,37 @@ def process(aid, rules_path=DEFAULT_RULES):
                       "passes": len(c["passes"]) if c.get("passes") else None,
                       "fps": round(float(tr.fps), 1), "size": [int(tr.W), int(tr.H)],
                       "seconds": round(tr.n / tr.fps, 1) if tr.fps else None,
-                      "measurements_used": info.get("measurements_used", 0)})
+                      "measurements_used": info.get("measurements_used", 0),
+                      # A still of this clip with the tracked points drawn on it (not in demo
+                      # mode: a simulated swimmer's points don't belong on the real video).
+                      "tracked": used and provider != "synthetic"
+                                 and tracked.render(paths[slot], tr, folder(aid) / tracked.name(slot))})
     record = {"id": aid, "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),
               "files": names, "clips": clips, "pose_provider": provider, "report": report}
     with open(folder(aid) / "report.json", "w") as f:
         json.dump(record, f, default=str, indent=1)
     return record
+
+
+_sample = {}
+
+
+def sample_record(rules_path=DEFAULT_RULES):
+    """A finished report for a made-up swimmer, for the public sample page: filmed from
+    above the water, with one fault on one arm, one whole-body fault and one estimate."""
+    if "r" not in _sample:
+        from swimform.synthetic import Swimmer, generate, generate_down_and_back
+        sw = Swimmer({"low_body_rotation": 0.9, "late_breath": 0.8}, cycle_s=1.55,
+                     arm_faults={"l": {"dropped_elbow": 1.0}})
+        rules, errors = R.load(rules_path)
+        if errors:
+            raise RuntimeError("rules workbook invalid: " + "; ".join(errors))
+        tracks = {SIDE: [generate_down_and_back(sw, camera="deck", quality="typical", seed=11, refraction=0.25)],
+                  HEAD_ON: [generate(HEAD_ON, sw, camera="deck", quality="typical", seed=12, t0=3.7)]}
+        _sample["r"] = {"id": "sample", "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                        "files": {}, "clips": [], "pose_provider": "sample",
+                        "report": json.loads(json.dumps(analyze(tracks, rules, top_n=3), default=str))}
+    return _sample["r"]
 
 
 def upload_info(aid):

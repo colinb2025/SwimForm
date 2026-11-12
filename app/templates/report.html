@@ -2,15 +2,15 @@
 {% from "_macros.html" import band %}
 {% block title %}Your stroke report · SwimForm{% endblock %}
 {% block band %}
-<header class="band">
+<div class="band">
   <div class="band-inner">
     <div>
-      <h1>Your stroke report</h1>
+      <h1>{{ "A sample stroke report" if sample else "Stroke report for " ~ admin_view.email if admin_view else "Your stroke report" }}</h1>
       <p class="sub"><time datetime="{{ r.created_iso }}" data-local="date">{{ r.created }}</time>{% if r.stroke_rate %} · <b>{{ r.stroke_rate }}</b> strokes a minute{% endif %} · We checked {{ r.lanes|length }} parts of your stroke</p>
     </div>
     <div><button type="button" class="btn btn-on-band print-report" hidden>Print or save PDF</button></div>
   </div>
-</header>
+</div>
 {% endblock %}
 {% block content %}
 {% set n_flag = r.counts.flagged %}
@@ -30,6 +30,9 @@
 <div class="notice notice-error" role="note" style="margin-bottom:20px"><div><p><b>We left out your {{ c.name }} clip.</b> {{ c.problems|join(" ") }} This report uses your other clips.</p></div></div>
 {% endfor %}
 <section class="card" data-report-id="{{ r.id }}" aria-label="Summary">
+  {% if sample %}
+  <div class="notice" role="note" style="margin-bottom:20px"><p><b>This is a sample report.</b> It shows what you get from two phone clips filmed above the water. The swimmer is simulated; yours will come from your own stroke.</p></div>
+  {% endif %}
   {% if r.synthetic %}
   <div class="notice" role="note" style="margin-bottom:20px"><p>Demo data: this report comes from a simulated swimmer, not from your video. Real analysis switches on when the pose model is connected.</p></div>
   {% endif %}
@@ -127,7 +130,7 @@
       </div>
     </div>
     {% endif %}
-    {% if not admin_view %}
+    {% if not admin_view and not sample %}
     {% set fb = feedback.get(p.id) %}
     <form class="fb" id="fb-{{ p.id }}" action="/analyses/{{ r.id }}/feedback" method="post">
       <input type="hidden" name="issue_id" value="{{ p.id }}">
@@ -185,6 +188,22 @@
   </div>
 </section>
 
+{% if r.tracked %}
+<section class="card section tracked" aria-labelledby="tracked-h">
+  <h2 id="tracked-h">What we tracked</h2>
+  <p class="intro-text">A frame from {{ "each of your clips" if r.tracked|length > 1 else "your clip" }}, with the body points we followed drawn on it. Every measurement in this report comes from these points, so if they sit on your body, the numbers are about you.</p>
+  <div class="tracked-grid">
+    {% for t in r.tracked %}
+    <figure class="snapshot">
+      <img class="tracked-img" src="/analyses/{{ r.id }}/tracked/{{ t.slot }}.jpg" loading="lazy" alt="A frame from your {{ t.name }} clip with the tracked body points drawn over you">
+      <figcaption>Your {{ t.name }} clip</figcaption>
+    </figure>
+    {% endfor %}
+  </div>
+  <p class="muted small" style="margin:10px 0 0"><span class="key key-l"></span>left side <span class="key key-r"></span>right side. Points we couldn't see clearly in this frame are left off.</p>
+</section>
+{% endif %}
+
 <details class="card section measured">
   <summary>How we measured it</summary>
   <p class="intro-text">Each score shows how close a measurement sits to the ideal range (100 = inside it).
@@ -206,7 +225,7 @@
   </div>
 </details>
 
-{% if not admin_view %}
+{% if not admin_view and not sample %}
 {% set fb = feedback.get("") %}
 <section class="card section fb-overall" id="fb-overall" aria-labelledby="fbo-h">
   <h2 id="fbo-h">How useful was this report?</h2>
@@ -230,12 +249,18 @@
 </section>
 {% endif %}
 
-{% if not admin_view and (r.priorities or r.also) %}
+{% if not admin_view and not sample and (r.priorities or r.also) %}
 <p class="next-step"><b>What now?</b> Pick the first one or two findings and work their drills into your swims for two to three weeks. Then film again: your next report shows what changed.</p>
 {% endif %}
 <div class="page-actions">
+  {% if sample and not user %}
+  <a class="btn btn-primary" href="/signup">{{ "Create your account" if signup_mode == "open" else "I have an invite" }}</a>
+  {% if signup_mode != "open" %}<a class="btn btn-secondary" href="/waitlist">Join the waitlist</a>{% endif %}
+  <a class="btn btn-secondary" href="/guide">How the filming works</a>
+  {% else %}
   <a class="btn btn-primary" href="/analyses/new">Analyse new clips</a>
   <a class="btn btn-secondary" href="/">All reports</a>
+  {% endif %}
 </div>
 {% endblock %}
 {% block scripts %}

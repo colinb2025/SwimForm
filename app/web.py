@@ -39,6 +39,7 @@ def page(request, name, ctx=None, status_code=200):
     ctx.setdefault("billing_enabled", billing.visible())
     ctx.setdefault("company", company())
     ctx.setdefault("signup_mode", beta.mode())
+    ctx.setdefault("share_image", base_url(request) + "/static/share.png")
     return templates.TemplateResponse(request, name, ctx, status_code=status_code)
 
 

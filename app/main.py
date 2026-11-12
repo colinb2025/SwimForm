@@ -18,10 +18,10 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import account, admin, auth, beta, billing, db, feedback, google, jobs, mailer, pipeline, presenter
+from . import account, admin, auth, beta, billing, db, feedback, google, jobs, mailer, pipeline, presenter, storage, tracked
 from .web import base_url, login_redirect, page, rules, safe_next as _safe_next, templates  # noqa: F401
 
 HERE = Path(__file__).resolve().parent
@@ -51,6 +51,39 @@ async def lifespan(_app):
 app = FastAPI(title="SwimForm", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 app.include_router(admin.router)
+
+
+from starlette.exceptions import HTTPException as StarletteHTTPException  # noqa: E402
+
+
+def _wants_html(request):
+    return "text/html" in request.headers.get("accept", "") or "*/*" in request.headers.get("accept", "*/*")
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_error(request: Request, exc: StarletteHTTPException):
+    """Unknown addresses and refused methods get a page, not a line of JSON."""
+    if not _wants_html(request) or request.url.path.startswith("/webhooks/"):
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+    if not hasattr(request.state, "user"):
+        request.state.user = None
+    if exc.status_code == 404:
+        return page(request, "error.html", {"title": "We can't find that page",
+                                            "text": "The link may be mistyped, or the page may have moved."}, 404)
+    return page(request, "error.html", {"title": "That didn't work",
+                                        "text": "Go back and try again. If it keeps happening, let us know."}, exc.status_code)
+
+
+@app.exception_handler(Exception)
+async def crash(request: Request, exc: Exception):
+    import logging
+    logging.getLogger("swimform").exception("unhandled error on %s %s", request.method, request.url.path)
+    request.state.user = getattr(request.state, "user", None)
+    try:
+        return page(request, "error.html", {"title": "Something went wrong on our side",
+                                            "text": "We've logged it. Please try again in a minute."}, 500)
+    except Exception:   # noqa: BLE001 - never let the error page itself take the response down
+        return HTMLResponse("<h1>Something went wrong</h1><p>Please try again in a minute.</p>", status_code=500)
 
 
 def summarise(record):
@@ -442,6 +475,13 @@ def render_analysis(request, row, admin_view=None):
 admin.render_analysis = render_analysis
 
 
+@app.get("/sample", response_class=HTMLResponse)
+def sample_report(request: Request):
+    """What a report looks like, for people deciding whether to sign up. Public."""
+    return page(request, "report.html", {"r": presenter.build(pipeline.sample_record(), rules()), "sample": True,
+                                         "coach_note": "", "feedback": {}, "since": None, "admin_view": None})
+
+
 @app.get("/analyses/{aid}", response_class=HTMLResponse)
 def report_page(request: Request, aid: str):
     user = request.state.user
@@ -451,6 +491,23 @@ def report_page(request: Request, aid: str):
     if row is None:
         return page(request, "missing.html", {}, 404)
     return render_analysis(request, row)
+
+
+@app.get("/analyses/{aid}/tracked/{slot}.jpg")
+def tracked_frame(request: Request, aid: str, slot: str):
+    """A still from the swimmer's own clip with the tracked points drawn on. Private:
+    the owner and admins only, like the report it belongs to."""
+    user = request.state.user
+    row = auth.owned_analysis(user, aid)
+    if row is None and beta.is_admin(user):
+        with db.session() as s:
+            row = s.get(db.Analysis, aid)
+    path = None
+    if row is not None and slot in pipeline.CLIPS:
+        path = storage.fetch(pipeline.folder(aid), aid, tracked.name(slot))
+    if path is None:
+        return Response(status_code=404)
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
 
 
 @app.get("/analyses/{aid}/status")
@@ -546,6 +603,18 @@ async def stripe_webhook(request: Request):
 def guide_page(request: Request):
     groups = [g for g in presenter.coverage(rules()) if g["issues"]]
     return page(request, "guide.html", {"coverage": groups})
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    from fastapi.responses import FileResponse
+    return FileResponse(HERE / "static" / "favicon.png", media_type="image/png", headers={"Cache-Control": "public, max-age=604800"})
+
+
+@app.get("/robots.txt", include_in_schema=False)
+def robots():
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse("User-agent: *\nAllow: /$\nAllow: /sample\nAllow: /guide\nAllow: /terms\nAllow: /privacy\nDisallow: /\n")
 
 
 @app.get("/healthz")

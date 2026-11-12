@@ -7,7 +7,8 @@
     {% if joined %}
     <h1>You're on the list</h1>
     <p class="lead">We'll email {{ email }} an invite as beta places open up.</p>
-    <a class="btn btn-secondary btn-block" href="/guide">See how the filming works</a>
+    <a class="btn btn-primary btn-block" href="/sample">See a sample report</a>
+    <a class="btn btn-secondary btn-block" href="/guide" style="margin-top:10px">See how the filming works</a>
     {% else %}
     <h1>Join the waitlist</h1>
     <p class="lead">SwimForm is in a small beta. Leave your email and we'll send an invite as places open up.</p>
@@ -22,7 +23,7 @@
       </label>
       <button type="submit" class="btn btn-primary btn-block">Join the waitlist</button>
     </form>
-    <p class="switch">Already have an invite? <a href="/signup">Create your account</a></p>
+    <p class="switch">Already have an invite? <a href="/signup">Create your account</a> · <a href="/sample">See a sample report</a></p>
     {% endif %}
   </div>
 </div>

@@ -12,7 +12,7 @@
 {%- endmacro %}
 
 {% macro band(title, sub=None) -%}
-<header class="band">
+<div class="band">
   <div class="band-inner">
     <div>
       <h1>{{ title }}</h1>
@@ -20,7 +20,7 @@
     </div>
     {% if caller %}<div>{{ caller() }}</div>{% endif %}
   </div>
-</header>
+</div>
 {%- endmacro %}
 
 {# Top-down pool with one camera position highlighted. #}

@@ -194,6 +194,9 @@ def build(record, rules):
         "fused": bool(s3.get("used")), "fused_agreement": s3.get("view_agreement"),
         "synthetic": record.get("pose_provider") == "synthetic",
         "unused_clips": unused_clips(record),
+        "tracked": [{"slot": c["slot"], "name": CLIP_NAMES[(c["view"], c["water"])]}
+                    for c in record.get("clips") or [] if c.get("tracked")],
+        "id": record.get("id"),
         "headline": ", ".join(p["name"] for p in priorities),
     }
 

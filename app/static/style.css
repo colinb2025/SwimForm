@@ -12,13 +12,13 @@
   --surface-2: #F7FAFC;
   --ink: #0E2638;
   --ink-2: #4F6577;
-  --ink-3: #8597A5;
+  --ink-3: #586C7C;
   --line: #E3EAF0;
   --line-2: #CBD7E0;
   --deep: #0A3350;
   --deep-2: #0E4365;
   --deep-ink: #C9DCEA;
-  --aqua: #127FA3;
+  --aqua: #0E7191;
   --aqua-2: #0E6B8A;
   --aqua-soft: #E3F2F7;
   --red: #CF3F3A;
@@ -703,3 +703,15 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0
 .next-step { margin-top: 24px; color: var(--ink-2); max-width: 720px; }
 .next-step b { color: var(--ink); }
 @media print { .next-step { display: none; } }
+
+/* keyboard users can jump past the header */
+.skip-link { position: absolute; left: 12px; top: -48px; z-index: 100; padding: 8px 14px; background: var(--deep); color: #fff; border-radius: var(--r-sm); font-weight: 600; }
+.skip-link:focus { top: 12px; }
+
+/* stills from the swimmer's own clips with the tracked skeleton drawn on */
+.tracked-grid { margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.tracked-img { width: 100%; height: auto; display: block; border-radius: var(--r-md); background: var(--grey-soft); }
+.key { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin: 0 5px 0 0; }
+.key { border: 1.5px solid #1E1E1E; }
+.key-l { background: #FFD60A; }
+.key-r { background: #FF4D4D; margin-left: 12px; }

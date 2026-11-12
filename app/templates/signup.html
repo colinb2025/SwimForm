@@ -37,6 +37,7 @@
           <input type="text" name="invite" id="invite" value="{{ invite }}" autocomplete="off" autocapitalize="characters" spellcheck="false"
                  {% if errors.invite %}aria-invalid="true" aria-describedby="invite-err"{% else %}aria-describedby="invite-help"{% endif %}>
           {% if errors.invite %}<span class="error" id="invite-err">{{ errors.invite }}</span>
+          <span class="help">No code? <a href="/waitlist">Join the waitlist</a> and we'll email you one.</span>
           {% else %}<span class="help" id="invite-help">No code? <a href="/waitlist">Join the waitlist</a>.</span>{% endif %}
         </label>
         {% endif %}
