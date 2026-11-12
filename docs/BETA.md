@@ -51,7 +51,7 @@ before the next `fit`: the privacy page promises this.
 | State | Reports list | Report page |
 |---|---|---|
 | queued / running | Measuring… | progress page, refreshes itself |
-| waiting (collect mode) | Clips received · report coming | "we're still finishing the analysis" |
+| waiting (collect mode) | Clips received | "we're still finishing the analysis" |
 | review | Being checked | "a coach looks over every report" |
 | done | counts | the report, feedback buttons, your note if you left one |
 | rejected | Clips need re-filming | what to change, per clip |

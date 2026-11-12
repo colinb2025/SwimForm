@@ -4,7 +4,7 @@
 {% block band %}
 {% call band(((user.name.split()[0] ~ "'s reports") if user.name else "Your reports"),
              "Every analysis you've run. Open one to see what to work on." if items else "Your analyses will show up here.") %}
-  <a class="btn btn-on-band" href="/analyses/new">New analysis</a>
+  <a class="btn btn-primary desk-only" href="/analyses/new">New analysis</a>
 {% endcall %}
 {% endblock %}
 {% block content %}
@@ -15,15 +15,16 @@
   <li>
     <a class="report-row" href="/analyses/{{ it.id }}">
       <span>
-        <time class="report-date" datetime="{{ it.iso }}" data-local="datetime">{{ it.date }}</time>
-        <span class="report-sum" style="display:block">
-          {% if it.status in ("queued", "running") %}<span class="pill pill-unchecked" style="margin-left:0">Measuring…</span>
-          {% elif it.status == "waiting" %}<span class="pill pill-unchecked" style="margin-left:0">Clips received · report coming</span>
-          {% elif it.status == "review" %}<span class="pill pill-unchecked" style="margin-left:0">Being checked</span>
-          {% elif it.status == "rejected" %}<span class="pill pill-estimated" style="margin-left:0">Clips need re-filming</span>
-          {% elif it.status == "failed" %}<span class="pill pill-flagged" style="margin-left:0">Didn't finish</span>
-          {% elif it.flagged %}{{ it.flagged }} to work on{% if it.headline %}: {{ it.headline }}{% endif %}{% elif not it.estimated %}Nothing flagged{% endif %}{% if it.estimated %}{% if it.flagged %} · {% endif %}{{ it.estimated }} estimated{% endif %}{% if it.unchecked %} · {{ it.unchecked }} not checked{% endif %}
-        </span>
+        <time class="report-when" datetime="{{ it.iso }}" data-local="datetime">{{ it.date }}</time>
+        {% if it.status in ("queued", "running") %}<span class="report-date">Measuring your stroke…</span>
+        {% elif it.status == "waiting" %}<span class="report-date">Clips received</span><span class="report-sum">Your report is coming. We'll email you.</span>
+        {% elif it.status == "review" %}<span class="report-date">Being checked</span><span class="report-sum">A coach is looking it over. We'll email you.</span>
+        {% elif it.status == "rejected" %}<span class="report-date">Clips need re-filming</span><span class="report-sum">Open to see what to change.</span>
+        {% elif it.status == "failed" %}<span class="report-date">Didn't finish</span><span class="report-sum">Something went wrong on our side.</span>
+        {% else %}
+        <span class="report-date">{% if it.flagged %}{{ it.flagged }} {{ "thing" if it.flagged == 1 else "things" }} to work on{% elif it.estimated %}{{ it.estimated }} that may need work{% else %}All looking good{% endif %}</span>
+        <span class="report-sum">{% if it.headline %}{{ it.headline }}{% endif %}{% if it.estimated and it.flagged %}{% if it.headline %} · {% endif %}{{ it.estimated }} estimated{% endif %}{% if it.unchecked %}{% if it.headline or (it.estimated and it.flagged) %} · {% endif %}{{ it.unchecked }} not checked{% endif %}</span>
+        {% endif %}
       </span>
       <span class="chev" aria-hidden="true">›</span>
       {% if it.lanes %}<span class="strip" aria-hidden="true">{% for st in it.lanes %}<i class="seg seg-{{ st }}"></i>{% endfor %}</span>{% endif %}

@@ -1,11 +1,11 @@
-/* Archivo, self-hosted: one variable file with width (62-125) and weight (100-900) axes.
+/* Inter, self-hosted: one variable file with weight (100-900) and optical-size (14-32)
+   axes, so large headings automatically use the tighter display cut.
    SIL Open Font License 1.1, see OFL-LICENSE.txt. Latin subset. */
 @font-face {
-  font-family: "Archivo";
+  font-family: "Inter";
   font-style: normal;
   font-display: swap;
   font-weight: 100 900;
-  font-stretch: 62% 125%;
-  src: url("/static/fonts/archivo-latin-wdth-normal.woff2") format("woff2-variations"),
-       url("/static/fonts/archivo-latin-wdth-normal.woff2") format("woff2");
+  src: url("/static/fonts/inter-latin-opsz-normal.woff2") format("woff2-variations"),
+       url("/static/fonts/inter-latin-opsz-normal.woff2") format("woff2");
 }

@@ -5,7 +5,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0A3350">
+  <meta name="theme-color" content="#FFFFFF">
   <title>{% block title %}SwimForm{% endblock %}</title>
   <meta name="description" content="Film two short clips of your freestyle. SwimForm checks 14 parts of your stroke and tells you what to work on first, with the drills to fix it.">
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
@@ -16,12 +16,12 @@
   <meta property="og:description" content="Two phone clips in, a ranked list of what to fix and the drills to fix it out.">
   <meta property="og:image" content="{{ share_image }}">
   <meta name="twitter:card" content="summary_large_image">
-  <link rel="preload" href="/static/fonts/archivo-latin-wdth-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/static/fonts/inter-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/fonts/fonts.css">
   <link rel="stylesheet" href="/static/style.css">
   {% block head %}{% endblock %}
 </head>
-<body>
+<body{% if user %} class="has-tabs"{% endif %}>
 {% block shell %}
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="topbar">
@@ -59,9 +59,12 @@
   </header>
   {% if user %}
   <nav class="mobile-nav" aria-label="Main (mobile)">
-    <a href="/" {% if path == "/" %}aria-current="page"{% endif %}>Reports</a>
-    <a href="/analyses/new" {% if path == "/analyses/new" %}aria-current="page"{% endif %}>New analysis</a>
-    <a href="/guide" {% if path == "/guide" %}aria-current="page"{% endif %}>Filming guide</a>
+    <a href="/" {% if path == "/" or path.startswith("/analyses/") and path != "/analyses/new" %}aria-current="page"{% endif %}>
+      <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 18V12M10.3 18V7M15.7 18v-4M21 18V9.5"/></svg>Reports</a>
+    <a class="tab-new" href="/analyses/new" {% if path == "/analyses/new" %}aria-current="page"{% endif %}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New</a>
+    <a href="/guide" {% if path == "/guide" %}aria-current="page"{% endif %}>
+      <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="7.5" width="14" height="11" rx="2.5"/><path d="M17.5 11.5l5-2.5v8l-5-2.5"/></svg>Filming</a>
   </nav>
   {% endif %}
   <main id="main">

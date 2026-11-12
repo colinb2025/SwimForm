@@ -63,7 +63,7 @@ def test_good_pair_produces_a_report(client):
     rep = client.get(r.headers["location"])
     assert rep.status_code == 200
     t = text(rep.text)
-    assert "Your stroke report" in t and "We checked 14 parts" in t
+    assert "Your stroke report" in t and "Stroke report" in t and rep.text.count('class="seg ') == 14
     assert "Demo data" in t                       # synthetic pose is never passed off as real
     assert rep.text.count('class="lane lane-') == 14
 
@@ -82,7 +82,7 @@ def test_proxy_findings_are_marked_as_estimates(client):
         est = [p for p in v["priorities"] if p["estimated"]]
         if est:
             page = text(client.get(r.headers["location"]).text)
-            assert "Estimated from what the cameras could see" in page
+            assert "Estimated" in page
             assert "may be" in est[0]["observed"]
             return
     pytest.skip("no proxy finding in 60 synthetic sessions")
@@ -242,7 +242,7 @@ def test_fonts_are_self_hosted(client):
     page = client.get("/").text
     assert "googleapis" not in page and "/static/fonts/fonts.css" in page
     assert client.get("/static/fonts/fonts.css").status_code == 200
-    assert client.get("/static/fonts/archivo-latin-wdth-normal.woff2").status_code == 200
+    assert client.get("/static/fonts/inter-latin-opsz-normal.woff2").status_code == 200
 
 
 def test_pages_load_their_scripts_and_work_without_them(client):
@@ -314,7 +314,7 @@ def test_second_report_says_what_changed_since_the_first(client, monkeypatch):
     assert "1 still to work on." in page and "New this time: Crossover entry." in page
     assert "Also in your last report" in page and "New since your last report" in page
     home = text(client.get("/").text)
-    assert "2 to work on: " in home and "Dropped elbow" in home
+    assert "2 things to work on" in home and "Dropped elbow" in home
     assert "Since your last report" not in text(client.get(first.headers["location"]).text)   # the first has nothing before it
 
 

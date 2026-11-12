@@ -243,7 +243,7 @@ def test_review_mode_holds_the_report_until_an_admin_releases_it(app_, monkeypat
     aid = aid_of(upload(swimmer))
     assert status_of(aid) == "review"
     page = text(swimmer.get(f"/analyses/{aid}").text)
-    assert "being checked" in page and "What to work on first" not in page
+    assert "being checked" in page and "Start here" not in page and "Work on this" not in page
     assert "Being checked" in text(swimmer.get("/").text)
     assert swimmer.post(f"/analyses/{aid}/feedback", data={"issue_id": "", "verdict": "5"}).status_code == 404
     assert outbox()[-1]["to"] == ADMIN and f"https://swimform.test/admin/analyses/{aid}" in outbox()[-1]["text"]
@@ -290,7 +290,7 @@ def test_collect_mode_stores_clips_and_waits_then_reruns(app_, monkeypatch, tmp_
     assert status_of(aid) == "waiting"
     assert (tmp_path / "analyses" / aid / "side.mp4").exists()
     assert "still finishing the analysis" in text(swimmer.get(f"/analyses/{aid}").text)
-    assert "report coming" in text(swimmer.get("/").text)
+    assert "report is coming" in text(swimmer.get("/").text)
 
     assert admin.post("/admin/rerun-waiting", follow_redirects=False).headers["location"].endswith("note=norerun")
     assert status_of(aid) == "waiting"                    # still no model: nothing to run with
@@ -299,7 +299,7 @@ def test_collect_mode_stores_clips_and_waits_then_reruns(app_, monkeypatch, tmp_
     assert admin.post("/admin/rerun-waiting", follow_redirects=False).headers["location"].endswith("note=waiting")
     assert status_of(aid) == "done"
     assert outbox()[-1]["to"] == "swimmer@example.com" and "report is ready" in outbox()[-1]["subject"]
-    assert "What to work on first" in swimmer.get(f"/analyses/{aid}").text
+    assert 'id="work-h"' in swimmer.get(f"/analyses/{aid}").text
 
 
 def test_rerun_one_analysis_and_refuse_when_clips_are_gone(app_):
@@ -655,7 +655,7 @@ def test_sample_report_is_public_and_asks_for_nothing(app_, monkeypatch):
     c = TestClient(app_)
     r = c.get("/sample")
     page = text(r.text)
-    assert r.status_code == 200 and "A sample stroke report" in page and "This is a sample report" in page
+    assert r.status_code == 200 and "Sample report" in page and "This is a sample report" in page
     assert "Dropped elbow" in page and "Seen on your left arm only" in page
     assert "/feedback" not in r.text and "Analyse new clips" not in page
     assert "I have an invite" in page and "Join the waitlist" in page
