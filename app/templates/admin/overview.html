@@ -1,0 +1,34 @@
+{% extends "admin/_layout.html" %}
+{% block admin %}
+<div class="stat-grid">
+  {% for label, value, href in [("Users", stats.users, "/admin/users"), ("Analyses", stats.analyses, "/admin/analyses"),
+       ("Waiting for review", review_count, "/admin/analyses?status=review"), ("On the waitlist", stats.waitlist, "/admin/invites"),
+       ("Findings swimmers agreed with", (stats.agree_pct ~ "%") if stats.agree_pct is not none else "—", "/admin/feedback"),
+       ("Uploads OK to train on", stats.consented, "/admin/analyses")] %}
+  <a class="card stat" href="{{ href }}"><span class="stat-num">{{ value }}</span><span class="stat-label">{{ label }}</span></a>
+  {% endfor %}
+</div>
+
+<section class="card section" aria-labelledby="conn-h">
+  <div class="section-head"><h2 id="conn-h">What's connected</h2>
+    <p>{% if ready %}Everything needed for beta testers is set up.{% else %}Some things still need setting up before real users.{% endif %}</p></div>
+  <ul class="list-plain conn-list">
+    {% for c in connections %}
+    <li class="conn conn-{{ c.state }}">
+      <span class="dot dot-{{ {'on': 'clear', 'off': 'unchecked', 'todo': 'estimated', 'problem': 'flagged'}[c.state] }}" aria-hidden="true"></span>
+      <span class="conn-body"><b>{{ c.name }}</b> <span class="pill pill-{{ {'on': 'clear', 'off': 'unchecked', 'todo': 'estimated', 'problem': 'flagged'}[c.state] }}">{{ {'on': 'On', 'off': 'Not used', 'todo': 'To do', 'problem': 'Fix'}[c.state] }}</span>
+        <span class="conn-detail">{{ c.detail }}</span>
+        {% if c.state != "on" and c.fix %}<span class="conn-fix">{{ c.fix }}</span>{% endif %}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  <form action="/admin/test-email" method="post" style="margin-top:16px"><button type="submit" class="btn btn-secondary">Send me a test email</button></form>
+</section>
+
+<section class="card section" aria-labelledby="st-h">
+  <h2 id="st-h">Analyses by state</h2>
+  <ul class="list-plain state-list">
+    {% for st, n in by_status %}<li><a href="/admin/analyses?status={{ st }}">{{ st }}</a> <b>{{ n }}</b></li>{% endfor %}
+  </ul>
+</section>
+{% endblock %}

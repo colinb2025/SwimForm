@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% from "_macros.html" import band %}
+{% block title %}Your reports · SwimForm{% endblock %}
+{% block band %}
+{% call band(((user.name.split()[0] ~ "'s reports") if user.name else "Your reports"),
+             "Every analysis you've run. Open one to see what to work on." if items else "Your analyses will show up here.") %}
+  <a class="btn btn-on-band" href="/analyses/new">New analysis</a>
+{% endcall %}
+{% endblock %}
+{% block content %}
+{% if items %}
+<h2 class="visually-hidden">All reports</h2>
+<ul class="report-list">
+  {% for it in items %}
+  <li>
+    <a class="report-row" href="/analyses/{{ it.id }}">
+      <span>
+        <time class="report-date" datetime="{{ it.iso }}" data-local="datetime">{{ it.date }}</time>
+        <span class="report-sum" style="display:block">
+          {% if it.status in ("queued", "running") %}<span class="pill pill-unchecked" style="margin-left:0">Measuring…</span>
+          {% elif it.status == "waiting" %}<span class="pill pill-unchecked" style="margin-left:0">Clips received · report coming</span>
+          {% elif it.status == "review" %}<span class="pill pill-unchecked" style="margin-left:0">Being checked</span>
+          {% elif it.status == "rejected" %}<span class="pill pill-estimated" style="margin-left:0">Clips need re-filming</span>
+          {% elif it.status == "failed" %}<span class="pill pill-flagged" style="margin-left:0">Didn't finish</span>
+          {% elif it.flagged %}{{ it.flagged }} to work on{% if it.headline %}: {{ it.headline }}{% endif %}{% elif not it.estimated %}Nothing flagged{% endif %}{% if it.estimated %}{% if it.flagged %} · {% endif %}{{ it.estimated }} estimated{% endif %}{% if it.unchecked %} · {{ it.unchecked }} not checked{% endif %}
+        </span>
+      </span>
+      <span class="chev" aria-hidden="true">›</span>
+      {% if it.lanes %}<span class="strip" aria-hidden="true">{% for st in it.lanes %}<i class="seg seg-{{ st }}"></i>{% endfor %}</span>{% endif %}
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="card empty">
+  <h2>No reports yet</h2>
+  <p>Film a 50 of your freestyle from the side and one length head-on, and we'll take it from there.</p>
+  <div class="page-actions" style="justify-content:center;margin-top:0">
+    <a class="btn btn-primary" href="/analyses/new">Start your first analysis</a>
+    <a class="btn btn-secondary" href="/guide">How to film</a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

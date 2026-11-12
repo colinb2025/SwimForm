@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% from "_macros.html" import band %}
+{% block title %}Plan · SwimForm{% endblock %}
+{% block band %}{{ band("Your plan", "SwimForm Pro" if plan.pro else "Free plan") }}{% endblock %}
+{% block content %}
+{% if done %}<div class="notice notice-ok" role="status" style="margin-bottom:20px"><p>Thanks! Your payment went through. If this page still says Free, give it a few seconds and refresh.</p></div>{% endif %}
+{% if error %}<div class="notice notice-error" role="alert" style="margin-bottom:20px"><p>{{ error }}</p></div>{% endif %}
+<div class="plans">
+  <section class="card plan{% if not plan.pro %} plan-current{% endif %}">
+    <h2>Free</h2>
+    <p class="plan-price">$0</p>
+    <ul class="list-plain plan-points">
+      <li>{% if plan.free_limit is not none %}{{ plan.free_limit }} {{ "analysis" if plan.free_limit == 1 else "analyses" }} a month{% else %}Stroke analyses{% endif %}</li>
+      <li>All 14 stroke checks, drills and filming guide</li>
+      <li>Reports saved to your account</li>
+    </ul>
+    {% if not plan.pro %}<p class="muted small">Your current plan.{% if plan.limit is not none %} {{ plan.used }} of {{ plan.limit }} used this month.{% endif %}</p>{% endif %}
+  </section>
+  <section class="card plan{% if plan.pro %} plan-current{% endif %}">
+    <h2>Pro</h2>
+    <p class="plan-price">{{ plan.price or "Unlimited" }}</p>
+    <ul class="list-plain plan-points">
+      <li>Unlimited analyses</li>
+      <li>Everything in Free</li>
+      <li>Cancel any time</li>
+    </ul>
+    {% if plan.pro %}
+      <p class="muted small">Your current plan.</p>
+      {% if plan.can_manage %}<form action="/billing/portal" method="post"><button type="submit" class="btn btn-secondary">Manage or cancel</button></form>{% endif %}
+    {% elif plan.can_upgrade %}
+      <form action="/billing/checkout" method="post"><button type="submit" class="btn btn-primary">Upgrade to Pro</button></form>
+      <p class="muted small" style="margin-top:8px">Secure payment by Stripe.</p>
+    {% else %}
+      <p class="muted small">Not on sale yet during the beta.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

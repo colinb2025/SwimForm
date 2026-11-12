@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% from "_macros.html" import band %}
+{% block title %}Beta console · SwimForm{% endblock %}
+{% block band %}{{ band("Beta console", "Only the accounts in SWIMFORM_ADMINS can see this.") }}{% endblock %}
+{% block page_class %}page-wide{% endblock %}
+{% block content %}
+<nav class="tabs" aria-label="Beta console">
+  {% for key, href, label in [("overview", "/admin", "Overview"), ("analyses", "/admin/analyses", "Analyses"), ("users", "/admin/users", "Users"), ("invites", "/admin/invites", "Invites"), ("feedback", "/admin/feedback", "Feedback")] %}
+  <a href="{{ href }}" {% if tab == key %}aria-current="page"{% endif %}>{{ label }}{% if key == "analyses" and review_count %} <span class="count-badge">{{ review_count }}</span>{% endif %}</a>
+  {% endfor %}
+</nav>
+{% if note %}<div class="notice notice-ok" role="status" style="margin-bottom:20px"><p>{{ note }}</p></div>{% endif %}
+{% block admin %}{% endblock %}
+{% endblock %}

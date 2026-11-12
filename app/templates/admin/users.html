@@ -1,0 +1,30 @@
+{% extends "admin/_layout.html" %}
+{% block admin %}
+<section class="card">
+  {% if items %}
+  <div class="table-wrap"><table class="admin-table">
+    <thead><tr><th scope="col">Joined</th><th scope="col">Account</th><th scope="col">Analyses</th><th scope="col">Invite</th><th scope="col">Plan</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+    <tbody>
+      {% for u in items %}
+      <tr>
+        <td data-label="Joined"><time datetime="{{ u.iso }}" data-local="date">{{ u.iso[:10] }}</time></td>
+        <td data-label="Account">{{ u.email }}{% if u.name %} <span class="muted">({{ u.name }})</span>{% endif %}{% if u.admin %} <span class="pill pill-unchecked">admin</span>{% endif %}{% if u.google %} <span class="muted small">Google</span>{% endif %}</td>
+        <td data-label="Analyses">{{ u.analyses }}</td>
+        <td data-label="Invite">{{ u.invite or "—" }}</td>
+        <td data-label="Plan">{{ u.plan }}{% if u.paying %} <span class="muted small">(paying)</span>{% endif %}</td>
+        <td>
+          <form action="/admin/users/{{ u.id }}/plan" method="post">
+            <input type="hidden" name="plan" value="{{ 'free' if u.plan == 'pro' else 'pro' }}">
+            <button type="submit" class="link-button">{{ "Make free" if u.plan == "pro" else "Give Pro" }}</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  <p class="muted small" style="margin-top:12px">"Give Pro" is a free upgrade (for beta testers). It doesn't touch Stripe; a paying subscriber's plan follows their subscription.</p>
+  {% else %}
+  <p class="muted">No accounts yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

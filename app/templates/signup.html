@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% from "_macros.html" import brand %}
+{% block title %}Create an account · SwimForm{% endblock %}
+{% block shell %}
+<div class="auth">
+  <aside class="auth-panel">
+    {{ brand() }}
+    <div class="auth-pitch">
+      <h1>Your stroke, measured</h1>
+      <p>Your reports are saved to your account and visible only to you, so you can see your stroke
+        change over a season.</p>
+      <div class="preview-card" aria-hidden="true">
+        <p class="preview-title">What you'll need</p>
+        <div class="preview-row"><span class="dot dot-clear"></span><span class="name">A side-view clip of a 50, down and back</span></div>
+        <div class="preview-row"><span class="dot dot-clear"></span><span class="name">A head-on clip of one length</span></div>
+        <div class="preview-row"><span class="dot dot-clear"></span><span class="name">A friend with a phone</span></div>
+      </div>
+    </div>
+    <p class="auth-foot">Built by a former Olympic Trials swimmer, for triathletes.</p>
+  </aside>
+
+  <main class="auth-main">
+    <div class="auth-form">
+      <h2>Create your account</h2>
+      {% if signup_mode == "closed" and not invite %}
+      <p class="lead">We're not taking new accounts right now.</p>
+      <a class="btn btn-primary btn-block" href="/waitlist">Join the waitlist</a>
+      {% else %}
+      <p class="lead">{% if signup_mode == "invite" %}SwimForm is invite-only during the beta.{% else %}Free to start. Takes a minute.{% endif %}</p>
+      {% if google_enabled %}
+      <a class="google-button" id="google-signup" href="/auth/google/start{% if invite %}?invite={{ invite|urlencode }}{% endif %}">Continue with Google</a>
+      <div class="divider">or</div>
+      {% endif %}
+      <form action="/signup" method="post" class="stack" novalidate>
+        {% if signup_mode != "open" or invite %}
+        <label class="field"><span>Invite code</span>
+          <input type="text" name="invite" id="invite" value="{{ invite }}" autocomplete="off" autocapitalize="characters" spellcheck="false"
+                 {% if errors.invite %}aria-invalid="true" aria-describedby="invite-err"{% else %}aria-describedby="invite-help"{% endif %}>
+          {% if errors.invite %}<span class="error" id="invite-err">{{ errors.invite }}</span>
+          <span class="help">No code? <a href="/waitlist">Join the waitlist</a> and we'll email you one.</span>
+          {% else %}<span class="help" id="invite-help">No code? <a href="/waitlist">Join the waitlist</a>.</span>{% endif %}
+        </label>
+        {% endif %}
+        <label class="field"><span>Name <span class="optional">(optional)</span></span>
+          <input type="text" name="name" value="{{ name }}" autocomplete="name" maxlength="120">
+        </label>
+        <label class="field"><span>Email</span>
+          <input type="email" name="email" value="{{ email }}" autocomplete="email" required
+                 {% if errors.email %}aria-invalid="true" aria-describedby="email-err"{% endif %}>
+          {% if errors.email %}<span class="error" id="email-err">{{ errors.email }}</span>{% endif %}
+        </label>
+        <label class="field"><span>Password</span>
+          <input type="password" name="password" autocomplete="new-password" required minlength="10"
+                 aria-describedby="{{ 'pw-err' if errors.password else 'pw-help' }}"
+                 {% if errors.password %}aria-invalid="true"{% endif %}>
+          {% if errors.password %}<span class="error" id="pw-err">{{ errors.password }}</span>
+          {% else %}<span class="help" id="pw-help">At least 10 characters.</span>{% endif %}
+        </label>
+        <button type="submit" class="btn btn-primary btn-block">Create account</button>
+        <p class="legal-line">By creating an account you confirm you're 18 or older and agree to the
+          <a href="/terms">Terms</a> and <a href="/privacy">Privacy Policy</a>.</p>
+      </form>
+      {% endif %}
+      <p class="switch">Already have an account? <a href="/login">Log in</a></p>
+    </div>
+  </main>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  /* Carry a typed invite code into the Google sign-up link. */
+  (function () {
+    var input = document.getElementById("invite"), link = document.getElementById("google-signup");
+    if (!input || !link) return;
+    input.addEventListener("input", function () {
+      var code = input.value.trim();
+      link.href = "/auth/google/start" + (code ? "?invite=" + encodeURIComponent(code) : "");
+    });
+  })();
+</script>
+{% endblock %}

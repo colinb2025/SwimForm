@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% from "_macros.html" import band %}
+{% block title %}Terms · SwimForm{% endblock %}
+{% block band %}{{ band("Terms of use", "Last updated 10 November 2026") }}{% endblock %}
+{% block content %}
+<article class="card legal">
+  <p>These terms are the agreement between you and {{ company.name }} ("SwimForm", "we") for using this
+    site. SwimForm is in beta: it is being tested, it will change, and it will sometimes be wrong.</p>
+
+  <h2>1. Who can use SwimForm</h2>
+  <p>You must be 18 or older. One person per account; keep your password to yourself.</p>
+
+  <h2>2. Your videos</h2>
+  <ul>
+    <li>You keep ownership of everything you upload.</li>
+    <li>You give us permission to store and process your clips so we can produce your reports and run the service.</li>
+    <li>Only upload clips of yourself, or of an adult who has agreed to it. Do not upload clips in which anyone under 18 can be identified.</li>
+    <li>We use your clips to improve the stroke model only if you tick the box that says so when you upload. See the <a href="/privacy">Privacy Policy</a>.</li>
+  </ul>
+
+  <h2>3. What a report is, and isn't</h2>
+  <p>A report is an automated estimate of swimming technique from video. It is not coaching from a person,
+    and it is not medical advice. It can miss things and it can flag things that aren't there; where it
+    couldn't see something, it says so. Swimming and the drills we suggest carry risk. Swim within your
+    ability, in supervised water, and talk to a doctor before changing your training if you have an
+    injury or a health condition.</p>
+
+  <h2>4. Acceptable use</h2>
+  <p>Don't upload anything unlawful or anything you have no right to share, don't try to break into
+    or overload the service, and don't resell reports or access without our written agreement.</p>
+
+  <h2>5. Paid plans</h2>
+  <p>If you buy a paid plan, the price and billing period are shown before you pay. Payments are handled
+    by Stripe. Plans renew automatically until you cancel, which you can do at any time from your Plan
+    page; cancelling stops future charges and you keep access until the period you've paid for ends.</p>
+
+  <h2>6. Beta service</h2>
+  <p>During the beta the service is provided as it is, without warranties of any kind. Features may be
+    added, changed or removed, and the service may be unavailable at times.</p>
+
+  <h2>7. Ending your account</h2>
+  <p>You can delete your account at any time from Account settings; that deletes your clips and reports.
+    We may suspend or close an account that breaks these terms.</p>
+
+  <h2>8. Liability</h2>
+  <p>To the extent the law allows, {{ company.name }} is not liable for indirect or consequential losses,
+    or for injury arising from how you train, and our total liability to you is limited to the amount you
+    paid us in the 12 months before the claim. Nothing in these terms limits liability that cannot
+    legally be limited.</p>
+
+  <h2>9. The law that applies</h2>
+  <p>These terms are governed by the laws of {{ company.law }}.</p>
+
+  <h2>10. Changes and contact</h2>
+  <p>If we change these terms in a way that matters, we'll email you before the change takes effect.
+    {% if company.contact %}Questions: <a href="mailto:{{ company.contact }}">{{ company.contact }}</a>.{% endif %}</p>
+</article>
+{% endblock %}

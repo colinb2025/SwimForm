@@ -1,0 +1,33 @@
+{% if admin_view %}
+<section class="card admin-bar" aria-label="Admin">
+  {% if admin_view.note %}<div class="notice notice-ok" role="status" style="margin-bottom:14px"><p>{{ admin_view.note }}</p></div>{% endif %}
+  <div class="admin-bar-top">
+    <div>
+      <p class="admin-tag">Admin view</p>
+      <p><b>{{ admin_view.email }}</b> · status <b>{{ admin_view.status }}</b>{% if admin_view.provider %} · pose: {{ admin_view.provider }}{% endif %}
+        {% if admin_view.train_ok %} · <span class="pill pill-clear">OK to train on</span>{% endif %}</p>
+      {% if admin_view.files %}<p class="muted small">Files: {{ admin_view.files.values()|join(", ") }}</p>{% endif %}
+      {% if admin_view.problem %}<p class="muted small">Failure: {{ admin_view.problem }}</p>{% endif %}
+    </div>
+    <div class="admin-actions">
+      <form action="/admin/analyses/{{ admin_view.aid }}/rerun" method="post"><button type="submit" class="btn btn-secondary">Re-run analysis</button></form>
+      <a class="btn btn-secondary" href="/admin/analyses">All analyses</a>
+    </div>
+  </div>
+  {% if admin_view.status == "review" %}
+  <form action="/admin/analyses/{{ admin_view.aid }}/release" method="post" class="stack" style="margin-top:16px">
+    <label class="field"><span>Note to the swimmer <span class="optional">(optional, shown at the top of their report)</span></span>
+      <textarea name="coach_note" rows="3" maxlength="4000"></textarea></label>
+    <div><button type="submit" class="btn btn-primary">Release report to swimmer</button></div>
+  </form>
+  {% elif admin_view.coach_note %}
+  <p class="muted small" style="margin-top:10px">Released with a coach note (shown below).</p>
+  {% endif %}
+  {% if admin_view.feedback %}
+  <h3 style="margin-top:18px">Swimmer's feedback</h3>
+  <ul class="list-plain admin-fb">
+    {% for f in admin_view.feedback %}<li><b>{{ f.what }}:</b> {{ f.verdict or "(no rating)" }}{% if f.comment %} · "{{ f.comment }}"{% endif %}</li>{% endfor %}
+  </ul>
+  {% endif %}
+</section>
+{% endif %}

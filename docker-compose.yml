@@ -1,0 +1,32 @@
+# Local production-like stack: the app + Postgres.
+#   cp .env.example .env    # fill it in
+#   docker compose up --build
+# Then open http://localhost:8000
+services:
+  app:
+    build: .
+    env_file: .env
+    environment:
+      SWIMFORM_DB: postgresql+psycopg://swimform:${POSTGRES_PASSWORD:-swimform}@db:5432/swimform
+    ports: ["8000:8000"]
+    volumes: ["clips:/data"]
+    depends_on:
+      db: {condition: service_healthy}
+    restart: unless-stopped
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: swimform
+      POSTGRES_DB: swimform
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-swimform}
+    volumes: ["pg:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U swimform"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  clips:
+  pg:

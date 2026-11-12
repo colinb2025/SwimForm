@@ -1,0 +1,91 @@
+{% from "_macros.html" import brand %}
+{% set path = request.url.path %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0A3350">
+  <title>{% block title %}SwimForm{% endblock %}</title>
+  <meta name="description" content="Film two short clips of your freestyle. SwimForm checks 14 parts of your stroke and tells you what to work on first, with the drills to fix it.">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  <meta property="og:site_name" content="SwimForm">
+  <meta property="og:title" content="SwimForm: see your freestyle the way a coach does">
+  <meta property="og:description" content="Two phone clips in, a ranked list of what to fix and the drills to fix it out.">
+  <meta property="og:image" content="{{ share_image }}">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preload" href="/static/fonts/archivo-latin-wdth-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/fonts/fonts.css">
+  <link rel="stylesheet" href="/static/style.css">
+  {% block head %}{% endblock %}
+</head>
+<body>
+{% block shell %}
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="topbar">
+    <div class="topbar-inner">
+      {{ brand() }}
+      {% if user %}
+      <nav class="nav" aria-label="Main">
+        <a href="/" {% if path == "/" or path.startswith("/analyses/") and path != "/analyses/new" %}aria-current="page"{% endif %}>Reports</a>
+        <a href="/analyses/new" {% if path == "/analyses/new" %}aria-current="page"{% endif %}>New analysis</a>
+        <a href="/guide" {% if path == "/guide" %}aria-current="page"{% endif %}>Filming guide</a>
+      </nav>
+      <div class="nav-end">
+        <details class="account">
+          <summary aria-label="Account menu">
+            <span class="avatar" aria-hidden="true">{{ (user.name or user.email)[:1]|upper }}</span>
+            <span class="visually-hidden">Account</span>
+          </summary>
+          <div class="account-menu">
+            <div class="who">{% if user.name %}<b>{{ user.name }}</b>{% endif %}<span>{{ user.email }}</span></div>
+            <a class="menu-item" href="/">Your reports</a>
+            <a class="menu-item" href="/account">Account settings</a>
+            {% if billing_enabled %}<a class="menu-item" href="/billing">Plan</a>{% endif %}
+            {% if is_admin %}<a class="menu-item" href="/admin">Beta console</a>{% endif %}
+            <form action="/logout" method="post"><button type="submit" class="menu-item">Log out</button></form>
+          </div>
+        </details>
+      </div>
+      {% else %}
+      <nav class="nav" aria-label="Main">
+        <a href="/guide" {% if path == "/guide" %}aria-current="page"{% endif %}>Filming guide</a>
+      </nav>
+      <div class="nav-end"><a class="btn btn-secondary" href="/login">Log in</a></div>
+      {% endif %}
+    </div>
+  </header>
+  {% if user %}
+  <nav class="mobile-nav" aria-label="Main (mobile)">
+    <a href="/" {% if path == "/" %}aria-current="page"{% endif %}>Reports</a>
+    <a href="/analyses/new" {% if path == "/analyses/new" %}aria-current="page"{% endif %}>New analysis</a>
+    <a href="/guide" {% if path == "/guide" %}aria-current="page"{% endif %}>Filming guide</a>
+  </nav>
+  {% endif %}
+  <main id="main">
+  {% block band %}{% endblock %}
+  <div class="page {% block page_class %}{% endblock %}">
+    {% block content %}{% endblock %}
+  </div>
+  </main>
+  {% include "_footer.html" %}
+{% endblock %}
+  <script>
+    /* Show stored UTC times in the reader's own time zone. */
+    document.querySelectorAll("time[data-local]").forEach(function (t) {
+      var d = new Date(t.getAttribute("datetime"));
+      if (isNaN(d)) return;
+      var opts = { day: "numeric", month: "short", year: "numeric" };
+      if (t.dataset.local === "datetime") { opts.hour = "numeric"; opts.minute = "2-digit"; }
+      t.textContent = d.toLocaleString(undefined, opts);
+    });
+    /* Close the account menu when clicking elsewhere. */
+    document.addEventListener("click", function (e) {
+      document.querySelectorAll("details.account[open]").forEach(function (d) { if (!d.contains(e.target)) d.open = false; });
+    });
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

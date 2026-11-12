@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Reset your password · SwimForm{% endblock %}
+{% block page_class %}page-plain{% endblock %}
+{% block content %}
+<div class="auth-single">
+  <div class="card">
+    {% if sent %}
+    <h1>Check your email</h1>
+    <p class="lead">If there's a SwimForm account for <b>{{ email }}</b>, we've sent it a link to choose a new password.
+      The link works for an hour.</p>
+    <p class="muted small">Nothing after a few minutes? Check your spam folder, or <a href="/forgot">send it again</a>.</p>
+    {% else %}
+    <h1>Reset your password</h1>
+    <p class="lead">Enter the email you signed up with and we'll send you a link to choose a new password.</p>
+    <form action="/forgot" method="post" class="stack">
+      <label class="field"><span>Email</span>
+        <input type="email" name="email" value="{{ email }}" autocomplete="email" required autofocus>
+      </label>
+      <button type="submit" class="btn btn-primary btn-block">Send reset link</button>
+    </form>
+    <p class="muted small" style="margin-top:20px;text-align:center">Remembered it? <a href="/login">Log in</a></p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

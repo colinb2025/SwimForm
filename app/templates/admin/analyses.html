@@ -1,0 +1,29 @@
+{% extends "admin/_layout.html" %}
+{% block admin %}
+<div class="filter-row">
+  <a class="chip{% if not status %} chip-on{% endif %}" href="/admin/analyses">All</a>
+  {% for st in statuses %}<a class="chip{% if status == st %} chip-on{% endif %}" href="/admin/analyses?status={{ st }}">{{ st }}</a>{% endfor %}
+  <form action="/admin/rerun-waiting" method="post" style="margin-left:auto"><button type="submit" class="btn btn-secondary">Run all waiting analyses</button></form>
+</div>
+<section class="card">
+  {% if items %}
+  <div class="table-wrap"><table class="admin-table">
+    <thead><tr><th scope="col">When</th><th scope="col">Swimmer</th><th scope="col">State</th><th scope="col">Result</th><th scope="col">Train</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+    <tbody>
+      {% for a in items %}
+      <tr>
+        <td data-label="When"><time datetime="{{ a.iso }}" data-local="datetime">{{ a.iso[:10] }}</time></td>
+        <td data-label="Swimmer">{{ a.email }}</td>
+        <td data-label="State"><span class="pill pill-{{ {'done': 'clear', 'review': 'estimated', 'failed': 'flagged', 'rejected': 'estimated'}.get(a.status, 'unchecked') }}" style="margin-left:0">{{ a.status }}</span></td>
+        <td data-label="Result">{% if a.status in ("done", "review") %}{{ a.flagged }} flagged · {{ a.estimated }} est · {{ a.unchecked }} n/c{% elif a.problem %}<span class="muted small">{{ a.problem[:80] }}</span>{% else %}—{% endif %}</td>
+        <td data-label="Train">{{ "yes" if a.train_ok else "no" }}</td>
+        <td><a href="/admin/analyses/{{ a.id }}">{{ "Review" if a.status == "review" else "Open" }}</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}
+  <p class="muted">Nothing here yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

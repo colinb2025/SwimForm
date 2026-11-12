@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% from "_macros.html" import band, mini_diagram %}
+{% block title %}How to film your clips · SwimForm{% endblock %}
+{% block band %}
+{% call band("How to film your clips", "Two short clips of steady freestyle: one from the side, one head-on. A friend with a phone is all it takes, and good footage is the biggest single thing you can do for an accurate report.") %}
+  {% if user %}<a class="btn btn-on-band" href="/analyses/new">Upload your clips</a>{% endif %}
+{% endcall %}
+{% endblock %}
+{% block content %}
+<div class="guide-grid">
+  <section class="card guide-card" aria-labelledby="g-side">
+    <h2 id="g-side">{{ mini_diagram("side") }}The side view</h2>
+    <ul class="list-dots">
+      <li>Film a 50: down the pool, the turn, and back, in one clip. On the way down the camera sees one arm clearly, on the way back the other, so we can check each arm on its own. The turn in the middle is fine; we cut it out.</li>
+      <li>Stand on the deck beside your lane and point the camera straight across it, not at an angle. Stay on the same side of the pool for both lengths.</li>
+      <li>Walk alongside at the swimmer's pace, keeping them in the middle of the frame. A camera that stays still only catches two or three strokes as they pass.</li>
+      <li>Frame the whole body, head to feet, with some water around it. Don't zoom in.</li>
+      <li>Underwater is the most accurate: hold the camera about half a metre down, still pointing straight across. You can upload an above-water side clip, an underwater one, or both.</li>
+    </ul>
+  </section>
+  <section class="card guide-card" aria-labelledby="g-head">
+    <h2 id="g-head">{{ mini_diagram("head_on") }}The head-on view</h2>
+    <ul class="list-dots">
+      <li>Set up at the end wall, in the middle of your lane. Above water, hold the phone high (stand on the wall or the block) and point it down the lane: looking down sees through the surface, where a low camera mostly sees glare.</li>
+      <li>If you can film underwater, put the lens below the surface at the wall instead, or add that as a second head-on clip.</li>
+      <li>Start filming when the swimmer pushes off from the far end, and stop before they reach the wall to turn.</li>
+      <li>Keep the camera still. The swimmer coming toward it is what we measure.</li>
+    </ul>
+  </section>
+</div>
+
+<div class="guide-grid" style="margin-top:20px">
+  <section class="card" aria-labelledby="g-need">
+    <h2 id="g-need" style="margin-bottom:14px">What you need</h2>
+    <ul class="list-dots">
+      <li>A phone, held sideways, filming at 1080p. Use 60 frames per second if your phone offers it, but not slow motion.</li>
+      <li>Someone to film, or a tripod or clamp for the head-on clip.</li>
+      <li>A lane with few other swimmers, so we lock onto you and nobody else.</li>
+      <li>Optional: a waterproof pouch or action camera for underwater clips. They let us measure the catch and pull directly.</li>
+      <li>Optional: a clip-on polarizing filter for above-water filming. It cuts the glare off the surface so more of the stroke is visible.</li>
+    </ul>
+  </section>
+  <section class="card" aria-labelledby="g-swim">
+    <h2 id="g-swim" style="margin-bottom:14px">How to swim it</h2>
+    <ul class="list-dots">
+      <li>Steady, comfortable pace, the way you'd swim a long set. Not a sprint.</li>
+      <li>Breathe the way you normally do. We check your breathing, so don't hold it.</li>
+      <li>No fins, paddles, pull buoy or snorkel.</li>
+      <li>Your clips can be from different laps. Two is the minimum, one from the side and one head-on; every extra clip is used.</li>
+    </ul>
+  </section>
+</div>
+
+<section class="card section" aria-labelledby="g-mistakes">
+  <h2 id="g-mistakes" style="margin-bottom:14px">Things that make clips unreadable</h2>
+  <div class="mistakes">
+    {% for title, text in [
+      ("Filming at an angle", "A diagonal view distorts every angle we measure. We'll ask you to re-film it."),
+      ("Screen recordings", "Upload the original video. Screen recordings scramble the timing we measure."),
+      ("Vertical video", "A swimmer is long and horizontal. Turn the phone sideways."),
+      ("Stops and walls", "Keep swimming steadily. One turn in the side clip is fine, but no stopping at the wall, and no turn in the head-on clip."),
+      ("Other people in shot", "Someone on the deck or in the next lane can be mistaken for you."),
+      ("Sun behind the swimmer", "Backlight turns the swimmer into a silhouette. Film with the light behind you.")] %}
+    <div class="mistake"><b>{{ title }}</b><span>{{ text }}</span></div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="card section" aria-labelledby="g-checks">
+  <div class="section-head"><h2 id="g-checks">What each clip lets us check</h2></div>
+  <div class="coverage">
+    {% for group in coverage %}
+    <div class="coverage-col coverage-{{ group.key }}">
+      <h3>{{ group.title }}</h3>
+      <p>{{ group.note }}</p>
+      <ul>{% for name in group.issues %}<li>{{ name }}</li>{% endfor %}</ul>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

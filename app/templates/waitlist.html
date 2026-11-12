@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Join the waitlist · SwimForm{% endblock %}
+{% block page_class %}page-plain{% endblock %}
+{% block content %}
+<div class="auth-single">
+  <div class="card">
+    {% if joined %}
+    <h1>You're on the list</h1>
+    <p class="lead">We'll email {{ email }} an invite as beta places open up.</p>
+    <a class="btn btn-primary btn-block" href="/sample">See a sample report</a>
+    <a class="btn btn-secondary btn-block" href="/guide" style="margin-top:10px">See how the filming works</a>
+    {% else %}
+    <h1>Join the waitlist</h1>
+    <p class="lead">SwimForm is in a small beta. Leave your email and we'll send an invite as places open up.</p>
+    <form action="/waitlist" method="post" class="stack" novalidate>
+      <label class="field"><span>Email</span>
+        <input type="email" name="email" value="{{ email }}" autocomplete="email" required autofocus
+               {% if error %}aria-invalid="true" aria-describedby="wl-err"{% endif %}>
+        {% if error %}<span class="error" id="wl-err">{{ error }}</span>{% endif %}
+      </label>
+      <label class="field"><span>About your swimming <span class="optional">(optional)</span></span>
+        <input type="text" name="note" maxlength="500" placeholder="e.g. training for my first 70.3, swim is my weak leg">
+      </label>
+      <button type="submit" class="btn btn-primary btn-block">Join the waitlist</button>
+    </form>
+    <p class="switch">Already have an invite? <a href="/signup">Create your account</a> · <a href="/sample">See a sample report</a></p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

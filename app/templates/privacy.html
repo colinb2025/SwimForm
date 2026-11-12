@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% from "_macros.html" import band %}
+{% block title %}Privacy · SwimForm{% endblock %}
+{% block band %}{{ band("Privacy policy", "Last updated 10 November 2026") }}{% endblock %}
+{% block content %}
+<article class="card legal">
+  <p>This page says what {{ company.name }} ("SwimForm", "we") collects when you use this site, why, and
+    what you can do about it. The short version: your clips and reports are private to your account, we
+    don't sell your data, we don't run ads or trackers, and you can delete everything yourself.</p>
+
+  <h2>What we collect</h2>
+  <ul>
+    <li><b>Account details:</b> your email, your name if you give one, and a scrambled (hashed) copy of your password. If you sign in with Google, we receive your name, email and a Google account identifier.</li>
+    <li><b>Your clips:</b> the videos you upload, the body positions we measure from them, still frames from those videos with the measured points drawn on (shown in your report), and the reports made from those measurements.</li>
+    <li><b>Feedback:</b> what you tell us about your reports.</li>
+    <li><b>Payment details:</b> if you buy a plan, Stripe handles the payment. We never see or store your card number; we keep your plan status and a Stripe customer reference.</li>
+    <li><b>Technical records:</b> server logs (such as IP address and time of request) kept for security and troubleshooting, and one cookie that keeps you logged in.</li>
+  </ul>
+
+  <h2>How we use it</h2>
+  <ul>
+    <li>To analyse your stroke and show you your reports.</li>
+    <li>To email you about your account and your reports (password resets, "your report is ready").</li>
+    <li>To keep the service secure and fix problems.</li>
+    <li><b>To improve the stroke model, only with your permission.</b> When you upload, a checkbox asks whether we may use those clips to train and test the model. It is off unless you tick it, and it applies to that upload only. If you say yes, frames from those clips may be viewed and annotated by our team.</li>
+  </ul>
+
+  <h2>Who can see your clips and reports</h2>
+  <p>You can. So can SwimForm staff, when checking a report before it's released during the beta, helping
+    you with a problem, or working on the model with clips you agreed to share. Nobody else: reports
+    aren't public and other users can't see them.</p>
+
+  <h2>Companies that process data for us</h2>
+  <p>We use service providers to run SwimForm: a hosting and storage provider (where your clips and reports
+    are kept), an email delivery provider, Stripe for payments, Google if you choose Google sign-in, and
+    an error-monitoring service. They handle your data only to provide their service to us.</p>
+
+  <h2>How long we keep it</h2>
+  <p>Until you delete it. Deleting your account from Account settings removes your account, every clip
+    and every report from our systems. If you agreed to let clips be used for the model, deleting your
+    account or emailing us withdraws that permission: we stop using those clips and remove our working
+    copies. A model that has already been trained can't have an individual clip's influence removed
+    from it.</p>
+
+  <h2>Your choices</h2>
+  <ul>
+    <li>See and delete your reports and account from the site at any time.</li>
+    <li>Leave the model-improvement box unticked, or change your default in Account settings.</li>
+    <li>Ask us for a copy of your data, or to correct or delete it{% if company.contact %}: <a href="mailto:{{ company.contact }}">{{ company.contact }}</a>{% endif %}.</li>
+  </ul>
+
+  <h2>Cookies</h2>
+  <p>One cookie, to keep you logged in. No advertising or analytics cookies.</p>
+
+  <h2>Age</h2>
+  <p>SwimForm is for adults. Don't create an account if you're under 18, and don't upload clips in which
+    anyone under 18 can be identified.</p>
+
+  <h2>Changes and contact</h2>
+  <p>If this policy changes in a way that matters, we'll email you first.
+    {% if company.contact %}Questions or requests: <a href="mailto:{{ company.contact }}">{{ company.contact }}</a>.{% endif %}</p>
+</article>
+{% endblock %}
