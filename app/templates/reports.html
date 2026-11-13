@@ -9,9 +9,22 @@
 {% endblock %}
 {% block content %}
 {% if items %}
-<h2 class="visually-hidden">All reports</h2>
+{% set L = items[0] if items[0].lanes and items[0].status == "done" else none %}
+{% set rest = items[1:] if L else items %}
+{% if L %}
+{% set nf = L.flagged or 0 %}{% set ne = L.estimated or 0 %}
+<a class="latest" href="/analyses/{{ L.id }}">
+  <span class="latest-when">Latest report · <time datetime="{{ L.iso }}" data-local="datetime">{{ L.date }}</time></span>
+  <span class="latest-title">{% if nf %}<b class="n-flagged">{{ nf }}</b> {{ "thing" if nf == 1 else "things" }} to work on{% elif ne %}<b class="n-estimated">{{ ne }}</b> {{ "thing" if ne == 1 else "things" }} that may need work{% else %}<b class="n-clear">All</b> looking good{% endif %}</span>
+  {% if L.headline %}<span class="latest-sum">{{ L.headline }}</span>{% endif %}
+  <span class="strip" style="grid-template-columns:repeat({{ L.lanes|length }}, 1fr)" aria-hidden="true">{% for st in L.lanes %}<i class="seg seg-{{ st }}"></i>{% endfor %}</span>
+  <span class="latest-go">Open report <span aria-hidden="true">›</span></span>
+</a>
+{% endif %}
+{% if rest %}
+<h2 class="list-head">{{ "Earlier" if L else "All reports" }}</h2>
 <ul class="report-list">
-  {% for it in items %}
+  {% for it in rest %}
   <li>
     <a class="report-row" href="/analyses/{{ it.id }}">
       <span>
@@ -32,6 +45,7 @@
   </li>
   {% endfor %}
 </ul>
+{% endif %}
 {% else %}
 <div class="card empty">
   <h2>No reports yet</h2>

@@ -1,25 +1,25 @@
 {% extends "base.html" %}
-{% from "_macros.html" import band %}
 {% block title %}Measuring your stroke · SwimForm{% endblock %}
 {% block head %}<noscript><meta http-equiv="refresh" content="6"></noscript>{% endblock %}
-{% block band %}
-{{ band("Measuring your stroke", "This usually takes about a minute. You can leave this page: the report will be waiting in Your reports.") }}
-{% endblock %}
+{% block page_class %}page-task{% endblock %}
 {% block content %}
 {% include "_admin_bar.html" %}
-<section class="card job" data-status-url="/analyses/{{ aid }}/status" aria-live="polite">
+<section class="job" data-status-url="/analyses/{{ aid }}/status" aria-live="polite">
+  <div class="job-ring" aria-hidden="true">
+    <svg viewBox="0 0 120 120"><circle class="ring-bg" cx="60" cy="60" r="52"/><circle class="ring-fg" cx="60" cy="60" r="52"/></svg>
+    <svg class="ring-wave" viewBox="0 0 32 32"><path d="M6.5 13.5c2.4-2.6 4.8-2.6 7.2 0s4.8 2.6 7.2 0 3.6-2.3 4.6-1.6" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round"/><path d="M6.5 20.5c2.4-2.6 4.8-2.6 7.2 0s4.8 2.6 7.2 0 3.6-2.3 4.6-1.6" fill="none" stroke="#0A5FDB" stroke-width="2.4" stroke-linecap="round"/></svg>
+  </div>
+  <h1>Measuring your stroke</h1>
+  <p class="job-sub">This takes about a minute. You can leave: the report will be waiting in Your reports.</p>
   <ol class="job-steps">
     <li class="done"><span class="step-dot" aria-hidden="true"></span>Clips uploaded</li>
-    <li class="{{ 'active' if status == 'running' else 'next' }}"><span class="step-dot" aria-hidden="true"></span>Checking both camera angles and finding you in each clip</li>
+    <li class="{{ 'active' if status == 'running' else 'next' }}"><span class="step-dot" aria-hidden="true"></span>Finding you in each clip</li>
     <li class="next"><span class="step-dot" aria-hidden="true"></span>Measuring 14 parts of your stroke</li>
     <li class="next"><span class="step-dot" aria-hidden="true"></span>Choosing what to work on first</li>
   </ol>
-  <div class="progress working"><div class="bar"><span style="width:100%"></span></div>
-    <p class="progress-label">{{ "Working on it." if status == "running" else "In the queue. It'll start in a moment." }}</p></div>
-</section>
-<div class="page-actions">
+  <div class="progress working"><p class="progress-label">{{ "Working on it." if status == "running" else "In the queue. It'll start in a moment." }}</p></div>
   <a class="btn btn-secondary" href="/">Your reports</a>
-</div>
+</section>
 {% endblock %}
 {% block scripts %}
 <script src="/static/processing.js" defer></script>

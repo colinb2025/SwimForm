@@ -1,57 +1,48 @@
 {% extends "base.html" %}
-{% from "_macros.html" import band, mini_diagram %}
+{% from "_macros.html" import mini_diagram %}
 {% block title %}Before your first upload · SwimForm{% endblock %}
-{% block band %}
-{{ band("Before your first upload", "Two minutes now saves a wasted trip to the pool. How you film decides how much we can measure.") }}
-{% endblock %}
+{% block page_class %}page-flow{% endblock %}
 {% block content %}
-<div class="steps">
-  <section class="card">
-    <span class="step-num" aria-hidden="true"></span>
-    <h2>Film two clips of easy freestyle</h2>
-    <ul class="list-dots">
-      <li>One from the side and one head-on. We need both: each angle sees what the other can't.</li>
-      <li>A few clean strokes is enough. One easy 50 for the side clip and one length for the head-on clip covers it.</li>
-      <li>Swim the way you normally do: steady pace, normal breathing, no fins, paddles or pull buoy.</li>
-    </ul>
-  </section>
-  <section class="card">
-    <span class="step-num" aria-hidden="true"></span>
-    <h2>{{ mini_diagram("side") }}The side clip</h2>
-    <ul class="list-dots">
-      <li>Have someone stand on the deck beside your lane, pointing the phone straight across it, not at an angle.</li>
-      <li>Swim down and back. They walk alongside to keep you in the middle of the frame, staying on the same side of the pool.</li>
-      <li>Your whole body in shot, head to feet. No zooming.</li>
-    </ul>
-  </section>
-  <section class="card">
-    <span class="step-num" aria-hidden="true"></span>
-    <h2>{{ mini_diagram("head_on") }}The head-on clip</h2>
-    <ul class="list-dots">
-      <li>From the end wall, in the middle of your lane, as you swim toward the camera.</li>
-      <li>Hold the phone high and point it down the lane. Looking down sees through the surface; a low camera mostly sees glare.</li>
-      <li>Keep it still, and stop filming before you reach the wall.</li>
-    </ul>
-  </section>
-  <section class="card">
-    <span class="step-num" aria-hidden="true"></span>
-    <h2>Set the phone up right</h2>
-    <ul class="list-dots">
-      <li>Sideways (landscape), 1080p, and 60 frames a second if your phone offers it. Not slow motion.</li>
-      <li>Upload the original video file. Screen recordings and copies sent through chat apps lose the detail we measure.</li>
-      <li>Pick a quiet lane, so nobody else is in the shot.</li>
-    </ul>
-  </section>
-  <section class="card">
-    <span class="step-num" aria-hidden="true"></span>
-    <h2>Optional: go underwater</h2>
-    <ul class="list-dots">
-      <li>Above-water clips are all you need. If you have a waterproof pouch or action camera, you can add underwater clips of the same two angles, and we measure the pull directly instead of reading it through the surface.</li>
-    </ul>
-  </section>
-</div>
-<form action="/start" method="post" class="card start-go">
-  <p>You can find all of this again under <a href="/guide">Filming guide</a>.</p>
-  <button type="submit" class="btn btn-primary btn-lg">Got it, upload my clips</button>
-</form>
+<section class="flow" role="region" aria-label="How to film" data-flow>
+  <div class="flow-top">
+    <div class="flow-bar" aria-hidden="true"><i class="on"></i><i></i><i></i><i></i></div>
+    <button type="submit" form="start-form" class="flow-skip">Skip</button>
+  </div>
+  <h1 class="visually-hidden">Before your first upload</h1>
+  <div class="flow-track" tabindex="0" aria-label="Filming steps, swipe or use the arrow keys">
+    <article class="flow-step">
+      <div class="flow-art pair">{{ mini_diagram("side") }}{{ mini_diagram("head_on") }}</div>
+      <h2>Two clips, two angles</h2>
+      <p class="lead">One from the side and one head-on. Each angle sees what the other can't.</p>
+      <p class="aside">A few clean strokes is enough. Swim easy and the way you normally do: no fins, paddles or pull buoy.</p>
+    </article>
+    <article class="flow-step">
+      <div class="flow-art">{{ mini_diagram("side") }}</div>
+      <h2>The side clip</h2>
+      <p class="lead">Someone on the deck points the phone straight across your lane and walks alongside as you swim a 50, down and back.</p>
+      <p class="aside">Your whole body in shot, head to feet. No zooming.</p>
+    </article>
+    <article class="flow-step">
+      <div class="flow-art">{{ mini_diagram("head_on") }}</div>
+      <h2>The head-on clip</h2>
+      <p class="lead">From the end wall, in the middle of your lane. Hold the phone high, look down the lane, and keep it still as you swim toward it.</p>
+      <p class="aside">Stop filming before you reach the wall. Looking down sees through the surface; a low camera mostly sees glare.</p>
+    </article>
+    <article class="flow-step">
+      <div class="flow-art">
+        <svg class="phone-art" viewBox="0 0 160 90" aria-hidden="true"><rect x="22" y="14" width="116" height="62" rx="12" fill="#000"/><rect x="28" y="20" width="104" height="50" rx="7" fill="#CFE3FF"/><circle cx="80" cy="45" r="11" fill="#0A5FDB"/><path d="M76 40l10 5-10 5z" fill="#fff"/><circle cx="131" cy="45" r="2" fill="#555"/></svg>
+      </div>
+      <h2>Set up the phone</h2>
+      <p class="lead">Turn it sideways. Film in 1080p at 60 frames a second if your phone offers it, and not in slow motion.</p>
+      <p class="aside">Upload the original video, not a screen recording or a copy sent through a chat app. Underwater clips are optional. Above-water clips are all you need.</p>
+    </article>
+  </div>
+  <form id="start-form" action="/start" method="post" class="flow-go">
+    <button type="button" class="btn btn-secondary btn-lg flow-back" hidden>Back</button>
+    <button type="button" class="btn btn-primary btn-lg flow-next" hidden>Next</button>
+    <button type="submit" class="btn btn-primary btn-lg flow-done">Got it, upload my clips</button>
+  </form>
+  <p class="flow-foot">You can find all of this again under <a href="/guide">Filming guide</a>.</p>
+</section>
 {% endblock %}
+{% block scripts %}<script src="/static/flow.js" defer></script>{% endblock %}

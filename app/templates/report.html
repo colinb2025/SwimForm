@@ -57,16 +57,18 @@
   <div class="section-head"><h2 id="work-h">{{ "Start here" if r.priorities|length > 1 else "Work on this" }}</h2></div>
   {% for p in r.priorities %}
   <article class="finding{% if p.estimated %} finding-est{% endif %}">
-    <div class="finding-top">
+    <details class="fold"{% if loop.first %} open{% endif %}>
+    <summary class="finding-top">
       <span class="rank" aria-label="Priority {{ loop.index }}">{{ loop.index }}</span>
-      <div class="finding-title">
+      <span class="finding-title">
         <h3>{{ p.name }}</h3>
         {% if p.estimated %}<span class="pill pill-estimated">Estimated</span>
         {% else %}<span class="pill pill-flagged">Needs work</span>{% endif %}
         {% if p.since == "repeat" %}<span class="pill pill-unchecked">Also in your last report</span>
         {% elif p.since == "new" %}<span class="pill pill-unchecked">New since your last report</span>{% endif %}
-      </div>
-    </div>
+        <span class="fold-line">{{ p.observed }}</span>
+      </span>
+    </summary>
     <div class="finding-body{% if not p.snapshot %} no-snap{% endif %}">
       <div>
         <p class="observed">{{ p.observed }}</p>
@@ -126,6 +128,7 @@
       {% if fb %}<span class="fb-thanks" role="status">Thanks, noted.</span>{% endif %}
     </form>
     {% endif %}
+    </details>
   </article>
   {% endfor %}
 </section>

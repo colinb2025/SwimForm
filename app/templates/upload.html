@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% from "_macros.html" import band, mini_diagram, upload_icon, zone %}
 {% block title %}New analysis · SwimForm{% endblock %}
+{% block page_class %}page-task{% endblock %}
 {% block band %}
 {% call band("New analysis", "Two clips of your freestyle: one from the side, one head-on. We check each clip before using it, so a bad angle gets caught, not graded.") %}
   <a class="btn btn-on-band desk-only" href="/guide">Filming guide</a>
@@ -38,7 +39,7 @@
           {{ mini_diagram(slot) }}
           <div><h2>{{ title }}</h2><p>{{ where }}</p></div>
         </div>
-        <ul class="tips">{% for t in tips %}<li>{{ t }}</li>{% endfor %}</ul>
+        <details class="how"><summary>How to film this</summary><ul class="tips">{% for t in tips %}<li>{{ t }}</li>{% endfor %}</ul></details>
         {% if card_problems %}
         <div class="notice notice-error problem" role="alert">
           <div>{% for p in card_problems %}<p>{{ p }}</p>{% endfor %}</div>

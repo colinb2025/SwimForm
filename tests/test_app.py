@@ -327,3 +327,42 @@ def test_checks_list_uses_plain_names_for_what_passed(client, monkeypatch):
     assert "Dropped elbow" in checks                       # a fault keeps its name
     assert "Hand entry line" in checks and "Kick width" in checks
     assert "Crossover entry" not in checks and "Scissor kick" not in checks   # fault names don't sit under "Looks good"
+
+
+# ------------------------------------------------------------------ round 2: flows
+def test_home_leads_with_the_latest_finished_report(client):
+    assert "Latest report" not in client.get("/").text        # nothing yet: the empty state
+    upload(client)
+    upload(client)
+    page = client.get("/").text
+    assert page.count('class="latest"') == 1 and "Earlier" in page
+    assert page.count('class="report-row"') == 1               # the older one is in the list, not duplicated
+
+
+def test_report_opens_the_first_finding_and_folds_the_rest(client):
+    page = client.get("/sample").text                           # always has several findings
+    n = page.count('<article class="finding')
+    assert n >= 2
+    assert page.count('<details class="fold" open>') == 1 and page.count('<details class="fold"') == n
+    assert page.count('class="fold-line"') == n                 # every finding has its one-line summary
+
+
+def test_onboarding_is_four_steps_with_a_way_through_without_javascript(client, monkeypatch):
+    monkeypatch.setenv("SWIMFORM_FIRST_RUN", "1")
+    page = client.get("/start").text
+    assert page.count('class="flow-step"') == 4 and page.count("<i") >= 4
+    assert 'action="/start"' in page and "Got it, upload my clips" in page and "/static/flow.js" in page
+
+
+def test_upload_page_is_phone_first(client):
+    page = client.get("/analyses/new").text
+    assert "Choose a video" in page and "How to film this" in page and "page-task" in page
+    assert "Drop your clip here" not in page
+
+
+def test_processing_screen_is_the_calm_one(client, monkeypatch):
+    from app import jobs
+    monkeypatch.setattr(jobs, "submit", lambda *a, **k: None)   # leave it queued
+    r = upload(client)
+    page = client.get(r.headers["location"]).text
+    assert "job-ring" in page and "Measuring your stroke" in page and "Clips uploaded" in page
