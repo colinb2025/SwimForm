@@ -134,7 +134,8 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0
 .band .sub b { color: var(--ink); font-weight: 600; }
 .page { max-width: var(--page); margin: 0 auto; padding: 36px var(--gutter) 96px; }
 .page-plain { padding-top: 56px; }
-.page-wide { max-width: 1120px; }
+.page-wide { max-width: var(--page); }
+.page-wide .card { overflow-x: auto; }
 .narrow .band-inner, .narrow .page { max-width: calc(var(--read) + 2 * var(--gutter)); }
 
 /* ---------- surfaces ---------- */
@@ -700,7 +701,6 @@ td:nth-child(2), td:nth-child(3), td:nth-child(5) { white-space: nowrap; }
   .seg, .dot, .pill, .rank, .snap-bg, .notice, .headline-num, .card, .drills { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .drill summary::after, .measured summary::after, .more-drills > summary { display: none; }
 }
-main:has(.page-wide) .band-inner { max-width: 1120px; }
 /* links inside running text carry a light underline, so they don't rely on colour alone */
 p a:not(.btn), li a:not(.btn):not(.report-row):not(.menu-item), .consent a { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); }
 p a:not(.btn):hover, li a:not(.btn):hover { text-decoration-color: currentColor; }
@@ -887,4 +887,15 @@ body.has-tabs:has(.page-flow, .page-task) .site-foot { padding-bottom: 28px; }
   .land-art { aspect-ratio: 16 / 9; }
   .land-card { padding: 24px 20px 20px; }
   .land-cta .btn { flex: 1 1 100%; }
+}
+
+
+/* ---------- round 3b: walk-through fixes ---------- */
+.checks-grid { columns: auto; display: grid; gap: 28px; }
+@media (min-width: 861px) { .check-clear .lane-list { columns: 2; column-gap: 40px; } .check-clear .lane { break-inside: avoid; } }
+.switch-note { margin-top: 22px; text-align: center; color: var(--ink-2); font-size: 0.9375rem; }
+.coverage { align-items: stretch; }
+@media (min-width: 861px) {
+  .coverage { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .coverage > :nth-child(4) { grid-column: span 2; }
 }

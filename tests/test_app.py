@@ -310,8 +310,8 @@ def test_second_report_says_what_changed_since_the_first(client, monkeypatch):
     swimmer["now"] = Swimmer({"dropped_elbow": 1.0, "crossover_entry": 1.0}, cycle_s=1.6)   # head fixed, new fault
     second = upload(client, side=("c.mp4", b"3"), head_on=("d.mov", b"4"))
     page = text(client.get(second.headers["location"]).text)
-    assert "Since your last report" in page and "Fixed: Head position." in page
-    assert "1 still to work on." in page and "New this time: Crossover entry." in page
+    assert "Since your last report" in page and "Fixed Head position." in page
+    assert "1 still to work on." in page and "New: Crossover entry." in page
     raw = client.get(second.headers["location"]).text
     assert 'title="Also in your last report">Again' in raw and 'title="New since your last report">New' in raw
     home = text(client.get("/").text)

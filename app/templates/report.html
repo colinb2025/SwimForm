@@ -32,12 +32,12 @@
     {% endfor %}
   </ul>
   {% if since %}
-  <p class="since"><b>Since your <a href="/analyses/{{ since.id }}">last report</a> (<time datetime="{{ since.iso }}" data-local="date">{{ since.date }}</time>):</b>
+  <p class="since"><b>Since your <a href="/analyses/{{ since.id }}">last report</a>:</b>
     {% if not since.fixed and not since.new and not since.still %}nothing was flagged then or now.
     {% else %}
-    {% if since.fixed %}<span class="since-fixed">Fixed: {{ since.fixed|join(", ") }}.</span>{% endif %}
+    {% if since.fixed %}<span class="since-fixed">Fixed {{ since.fixed|join(", ") }}.</span>{% endif %}
     {% if since.still %}{{ since.still }} still to work on.{% endif %}
-    {% if since.new %}New this time: {{ since.new|join(", ") }}.{% endif %}
+    {% if since.new %}New: {{ since.new|join(", ") }}.{% endif %}
     {% endif %}</p>
   {% endif %}
 </section>
@@ -154,7 +154,7 @@
     {% for key, label in [("flagged", "Needs work"), ("estimated", "May need work"), ("unchecked", "Couldn't check"), ("clear", "Looks good")] %}
     {% set group = r.lanes|selectattr("status", "in", ["clear", "clear_est"] if key == "clear" else [key])|list %}
     {% if group %}
-    <div class="check-group">
+    <div class="check-group check-{{ key }}">
       <h3><span class="dot dot-{{ key }}" aria-hidden="true"></span>{{ label }} <span class="count">{{ group|length }}</span></h3>
       <ul class="lane-list">
         {% for l in group %}
@@ -244,7 +244,7 @@
   {% if signup_mode != "open" %}<a class="btn btn-secondary" href="/waitlist">Join the waitlist</a>{% endif %}
   <a class="btn btn-secondary" href="/guide">How the filming works</a>
   {% else %}
-  <a class="btn btn-primary" href="/analyses/new">Analyse new clips</a>
+  <a class="btn btn-primary" href="/analyses/new">Analyze new clips</a>
   <a class="btn btn-secondary" href="/">All reports</a>
   {% endif %}
 </div>

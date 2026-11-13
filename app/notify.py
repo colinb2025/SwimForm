@@ -44,7 +44,7 @@ def clips_rejected(aid):
     if user is None:
         return
     _send(user.email, "We couldn't use your SwimForm clips",
-          f"{_hi(user)}\n\nWe checked the clips you uploaded and couldn't analyse them as filmed. "
+          f"{_hi(user)}\n\nWe checked the clips you uploaded and couldn't analyze them as filmed. "
           f"This page says what to change:\n\n{_base()}/analyses/{aid}\n")
 
 

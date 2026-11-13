@@ -6,7 +6,7 @@
   <div class="card">
     <h1>{{ title }}</h1>
     <p class="lead">{{ text }}</p>
-    <a class="btn btn-primary btn-block" href="/">{{ "Go to your reports" if user else "Go to SwimForm" }}</a>
+    <a class="btn btn-primary" href="/">{{ "Go to your reports" if user else "Go to SwimForm" }}</a>
     {% if company.contact %}<p class="switch">Need a hand? <a href="mailto:{{ company.contact }}">{{ company.contact }}</a></p>{% endif %}
   </div>
 </div>

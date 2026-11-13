@@ -65,7 +65,7 @@
 
   <div class="submit-bar">
     <p class="hint">{% if collecting %}Your clips are private to your account.{% else %}Analysis takes about a minute. Your clips are private to your account.{% endif %}{% if plan.limit is not none %} {{ plan.left }} of {{ plan.limit }} free {{ "analysis" if plan.limit == 1 else "analyses" }} left this month.{% endif %}</p>
-    <button type="submit" class="btn btn-primary btn-lg">{{ "Send my clips" if collecting else "Analyse my stroke" }}</button>
+    <button type="submit" class="btn btn-primary btn-lg">{{ "Send my clips" if collecting else "Analyze my stroke" }}</button>
     <div class="progress" role="status" aria-live="polite" hidden>
       <div class="bar"><span></span></div>
       <p class="progress-label"></p>
