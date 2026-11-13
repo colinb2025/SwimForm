@@ -90,7 +90,7 @@ def test_invite_mode_refuses_without_a_valid_code(app_, monkeypatch):
     assert r.status_code == 422 and "invite-only" in text(r.text)
     r = signup(c, invite="NOPE1234")
     assert r.status_code == 422 and "don't recognise" in text(r.text)
-    assert c.get("/", follow_redirects=False).status_code == 303   # still logged out
+    assert c.get("/account", follow_redirects=False).status_code == 303   # still logged out
 
 
 def test_invite_code_works_once(app_, monkeypatch):
@@ -762,3 +762,16 @@ def test_tracked_frame_gives_up_quietly(tmp_path):
     assert tracked.render(tmp_path / "not-a-video.mp4", tr, tmp_path / "out.jpg") is False
     tr.data[:, :, 2] = 0.1                                # nothing seen anywhere
     assert tracked.pick_frame(tr) is None
+
+
+def test_front_door_follows_the_signup_mode(app_, monkeypatch):
+    from starlette.testclient import TestClient
+    from app.main import app as web
+    c = TestClient(web)                                       # signed out
+    monkeypatch.setenv("SWIMFORM_SIGNUP", "closed")
+    page_ = c.get("/").text
+    assert 'href="/waitlist"' in page_ and "Create your account" not in page_
+    monkeypatch.setenv("SWIMFORM_SIGNUP", "invite")
+    page_ = c.get("/").text
+    assert "invite-only" in page_ and 'href="/signup"' in page_
+    assert page_.count('class="seg ') >= 28                    # the sample's 14 checks, shown twice

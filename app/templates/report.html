@@ -64,8 +64,8 @@
         <h3>{{ p.name }}</h3>
         {% if p.estimated %}<span class="pill pill-estimated">Estimated</span>
         {% else %}<span class="pill pill-flagged">Needs work</span>{% endif %}
-        {% if p.since == "repeat" %}<span class="pill pill-unchecked">Also in your last report</span>
-        {% elif p.since == "new" %}<span class="pill pill-unchecked">New since your last report</span>{% endif %}
+        {% if p.since == "repeat" %}<span class="pill pill-unchecked" title="Also in your last report">Again</span>
+        {% elif p.since == "new" %}<span class="pill pill-unchecked" title="New since your last report">New</span>{% endif %}
         <span class="fold-line">{{ p.observed }}</span>
       </span>
     </summary>

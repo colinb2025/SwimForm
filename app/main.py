@@ -371,8 +371,8 @@ def account_delete(request: Request, confirm: str = Form(""), password: str = Fo
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     user = request.state.user
-    if user is None:
-        return login_redirect(request)
+    if user is None:   # the front door: what SwimForm is, with a sample result to look at
+        return page(request, "landing.html", {"r": presenter.build(pipeline.sample_record(), rules())})
     rows = auth.list_analyses(user)
     items = [{"id": a.id, "date": f"{a.created.day} {a.created:%b %Y}",
               "iso": (a.created if a.created.tzinfo else a.created.replace(tzinfo=db.now().tzinfo)).isoformat(),

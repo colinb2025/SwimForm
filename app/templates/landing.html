@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% from "_macros.html" import mini_diagram %}
+{% block title %}SwimForm: see your freestyle the way a coach does{% endblock %}
+{% block page_class %}page-landing{% endblock %}
+{% block content %}
+{% set n_flag = r.counts.flagged %}
+{% set n_est = r.counts.estimated %}
+{% macro cta(cls) %}
+  {% if signup_mode == "closed" %}<a class="btn btn-primary {{ cls }}" href="/waitlist">Join the waitlist</a>
+  {% else %}<a class="btn btn-primary {{ cls }}" href="/signup">Create your account</a>{% endif %}
+{% endmacro %}
+
+<section class="land-hero">
+  <h1>See your freestyle the way a coach does</h1>
+  <p class="land-sub">Film two clips on your phone. SwimForm measures 14 parts of your stroke, tells you what to fix first, and gives you the drills and strength work to fix it.</p>
+  <div class="land-cta">
+    {{ cta("btn-lg") }}
+    <a class="btn btn-secondary btn-lg" href="/sample">See a sample report</a>
+  </div>
+  <p class="land-note">
+    {% if signup_mode == "invite" %}SwimForm is invite-only during the beta. <a href="/waitlist">No code yet? Join the waitlist.</a>
+    {% elif signup_mode == "closed" %}We're not taking new accounts right now. Leave your email and we'll let you know when we are.
+    {% else %}Free to start. Made for triathletes who swim.{% endif %}
+  </p>
+</section>
+
+<a class="latest land-card" href="/sample" aria-label="Open the sample report">
+  <span class="latest-when">Sample report · simulated swimmer</span>
+  <span class="latest-title">{% if n_flag %}<b class="n-flagged">{{ n_flag }}</b> {{ "thing" if n_flag == 1 else "things" }} to work on{% elif n_est %}<b class="n-estimated">{{ n_est }}</b> {{ "thing" if n_est == 1 else "things" }} that may need work{% else %}<b class="n-clear">All</b> looking good{% endif %}</span>
+  <span class="strip" style="grid-template-columns:repeat({{ r.lanes|length }}, 1fr)" aria-hidden="true">{% for l in r.lanes %}<i class="seg seg-{{ l.status }}"></i>{% endfor %}</span>
+  <ul class="land-find">{% for p in r.priorities[:2] %}<li><b>{{ p.name }}</b><span>{{ p.observed }}</span></li>{% endfor %}</ul>
+  <span class="latest-go">Open the sample report <span aria-hidden="true">›</span></span>
+</a>
+
+<section class="land-section" aria-labelledby="how-h">
+  <h2 id="how-h">How it works</h2>
+  <ol class="land-steps">
+    <li>
+      <div class="land-art pair">{{ mini_diagram("side") }}{{ mini_diagram("head_on") }}</div>
+      <h3>Film two clips</h3>
+      <p>One from the side and one head-on. A friend with a phone and a couple of lengths is all it takes. We'll show you where to stand.</p>
+    </li>
+    <li>
+      <div class="land-art"><div class="strip" style="grid-template-columns:repeat({{ r.lanes|length }}, 1fr);width:100%" aria-hidden="true">{% for l in r.lanes %}<i class="seg seg-{{ l.status }}"></i>{% endfor %}</div></div>
+      <h3>We measure your stroke</h3>
+      <p>Fourteen checks, from your catch to your kick. If the cameras couldn't see something, we say so instead of guessing.</p>
+    </li>
+    <li>
+      <div class="land-art"><div class="land-mini"><span class="rank">1</span><span><b>{{ r.priorities[0].name }}</b><small>Pool drills, plus mobility and strength work</small></span></div></div>
+      <h3>Know what to fix first</h3>
+      <p>The one or two things that matter most right now, each with the drills and exercises that fix it.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="land-section" aria-labelledby="look-h">
+  <h2 id="look-h">Fourteen things a coach looks for</h2>
+  <ul class="land-checks">{% for l in r.lanes %}<li>{{ l.check }}</li>{% endfor %}</ul>
+</section>
+
+<section class="land-final" aria-labelledby="final-h">
+  <h2 id="final-h">Ready to see yours?</h2>
+  <p>Your reports are private to you. We only learn from your clips if you say yes.</p>
+  <div class="land-cta">{{ cta("btn-lg") }}<a class="btn btn-on-dark btn-lg" href="/guide">How to film</a></div>
+</section>
+{% endblock %}

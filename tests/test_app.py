@@ -312,7 +312,8 @@ def test_second_report_says_what_changed_since_the_first(client, monkeypatch):
     page = text(client.get(second.headers["location"]).text)
     assert "Since your last report" in page and "Fixed: Head position." in page
     assert "1 still to work on." in page and "New this time: Crossover entry." in page
-    assert "Also in your last report" in page and "New since your last report" in page
+    raw = client.get(second.headers["location"]).text
+    assert 'title="Also in your last report">Again' in raw and 'title="New since your last report">New' in raw
     home = text(client.get("/").text)
     assert "2 things to work on" in home and "Dropped elbow" in home
     assert "Since your last report" not in text(client.get(first.headers["location"]).text)   # the first has nothing before it

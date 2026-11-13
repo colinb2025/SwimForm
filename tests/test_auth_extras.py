@@ -33,7 +33,7 @@ def signup(c, email="a@example.com", name="Alex"):
 
 
 def logged_in(c):
-    return c.get("/", follow_redirects=False).status_code == 200
+    return c.get("/account", follow_redirects=False).status_code == 200
 
 
 def reset_link():

@@ -50,9 +50,12 @@ def test_passwords_are_hashed_with_salt_and_verify():
 # ------------------------------------------------------------------ flows
 def test_anonymous_visitors_are_sent_to_login(app_):
     c = browser(app_)
-    for path in ("/", "/analyses/new", "/analyses/abc123abc123"):
+    for path in ("/analyses/new", "/analyses/abc123abc123"):
         r = c.get(path, follow_redirects=False)
         assert r.status_code == 303 and r.headers["location"].startswith("/login")
+    front = c.get("/")                                # the front door, not a login wall
+    assert front.status_code == 200 and "See your freestyle the way a coach does" in front.text
+    assert 'href="/sample"' in front.text and 'href="/signup"' in front.text
     assert c.get("/guide").status_code == 200       # the filming guide stays public
     assert c.get("/login").status_code == 200
 
@@ -63,7 +66,7 @@ def test_signup_logs_in_and_lands_on_upload(app_):
     assert r.status_code == 303 and r.headers["location"] == "/analyses/new"
     assert "swimform_session" in r.headers.get("set-cookie", "")
     assert "httponly" in r.headers["set-cookie"].lower() and "samesite=lax" in r.headers["set-cookie"].lower()
-    assert c.get("/", follow_redirects=False).status_code == 200
+    assert c.get("/account", follow_redirects=False).status_code == 200
 
 
 def test_signup_validation(app_):
@@ -82,12 +85,12 @@ def test_login_logout(app_):
     c = browser(app_)
     signup(c)
     c.post("/logout", follow_redirects=False)
-    assert c.get("/", follow_redirects=False).status_code == 303
+    assert c.get("/account", follow_redirects=False).status_code == 303
     r = login(c, pw="wrong password!")
     assert r.status_code == 401 and "match an account" in r.text
     r = login(c)
     assert r.status_code == 303
-    assert c.get("/", follow_redirects=False).status_code == 200
+    assert c.get("/account", follow_redirects=False).status_code == 200
 
 
 def test_logout_kills_the_session_server_side(app_):
@@ -97,7 +100,7 @@ def test_logout_kills_the_session_server_side(app_):
     c.post("/logout")
     thief = browser(app_)
     thief.cookies.set("swimform_session", token)
-    assert thief.get("/", follow_redirects=False).status_code == 303
+    assert thief.get("/account", follow_redirects=False).status_code == 303
 
 
 def test_login_redirects_back_to_where_you_were_going_but_not_offsite(app_):
@@ -150,6 +153,6 @@ def test_cross_site_posts_are_refused(app_):
     signup(c)
     r = c.post("/logout", headers={"origin": "https://evil.example"}, follow_redirects=False)
     assert r.status_code == 403
-    assert c.get("/", follow_redirects=False).status_code == 200   # still logged in
+    assert c.get("/account", follow_redirects=False).status_code == 200   # still logged in
     r = c.post("/logout", headers={"origin": "http://testserver"}, follow_redirects=False)
     assert r.status_code == 303

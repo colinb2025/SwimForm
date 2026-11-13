@@ -77,15 +77,15 @@ def test_change_password_logs_out_other_devices_but_not_this_one(env):
     app, *_ = env
     c = browser(app)
     other, r = login(app)
-    assert r.status_code == 303 and other.get("/", follow_redirects=False).status_code == 200
+    assert r.status_code == 303 and other.get("/account", follow_redirects=False).status_code == 200
     r = c.post("/account/password", data={"current": "wrong password!", "new": "a brand new pass"})
     assert r.status_code == 422
     r = c.post("/account/password", data={"current": PW, "new": "short"})
     assert r.status_code == 422 and "at least 10" in t(r)
     r = c.post("/account/password", data={"current": PW, "new": "a brand new pass"})
     assert "Password saved" in t(r)
-    assert c.get("/", follow_redirects=False).status_code == 200            # still logged in here
-    assert other.get("/", follow_redirects=False).status_code == 303        # kicked out there
+    assert c.get("/account", follow_redirects=False).status_code == 200            # still logged in here
+    assert other.get("/account", follow_redirects=False).status_code == 303        # kicked out there
     assert login(app, pw="a brand new pass")[1].status_code == 303
     assert login(app)[1].status_code == 401
 
@@ -95,8 +95,8 @@ def test_log_out_other_devices(env):
     c = browser(app)
     other, _ = login(app)
     assert "Every other device" in t(c.post("/account/sessions"))
-    assert other.get("/", follow_redirects=False).status_code == 303
-    assert c.get("/", follow_redirects=False).status_code == 200
+    assert other.get("/account", follow_redirects=False).status_code == 303
+    assert c.get("/account", follow_redirects=False).status_code == 200
 
 
 def test_wrong_current_password_is_rate_limited(env):
